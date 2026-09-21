@@ -2,7 +2,7 @@
 
 [▶ **Jugar ahora**](https://eeduuu.github.io/pumPPoker/)
 
-**Juegos de cartas gratuitos, rápidos y sin dinero real.**
+**Juegos gratuitos, rápidos y sin dinero real.**
 
 Un proyecto personal creado por mí desde cero para disfrutar de partidas sencillas desde cualquier dispositivo. La colección seguirá creciendo con nuevos juegos y mejoras.
 
