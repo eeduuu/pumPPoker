@@ -1,12 +1,12 @@
 # ♠ pumꟼPoker
 
+[▶ **Jugar ahora**](https://eeduuu.github.io/pumPPoker/)
+
 **Juegos de cartas gratuitos, rápidos y sin dinero real.**
 
 Un proyecto personal creado por mí desde cero para disfrutar de partidas sencillas desde cualquier dispositivo. La colección seguirá creciendo con nuevos juegos y mejoras.
 
-## Jugar
-
-Abre la web publicada en GitHub Pages. No necesitas registrarte ni descargar nada.
+No necesitas registrarte ni descargar nada para jugar desde el navegador.
 
 ## Tener la app en el móvil
 
