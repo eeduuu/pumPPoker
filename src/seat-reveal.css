@@ -1,0 +1,65 @@
+/* Revealed cards stay with their owner; the action bar is unused during a runout. */
+.game-shell.reveal-active .player-dock{min-height:56px}
+.game-shell.reveal-active .player-dock>.preview-status,
+.game-shell.reveal-active .player-dock>.game-actions,
+.game-shell.reveal-active .player-dock>.folded-wait{display:none}
+.game-shell.reveal-active .human-equity{font-size:16px;padding:3px 7px}
+.game-shell.reveal-active .table-stage{transition:none}
+.game-shell.reveal-active .bot-seat.reveal-showing{width:min(45%,170px);height:72px;min-height:72px;padding:4px 6px;overflow:visible;border-color:#789a78;background:#1b3025;z-index:3}
+.game-shell.reveal-active .bot-seat.reveal-top-three{width:min(31%,132px)}
+.game-shell.reveal-active .bot-seat.reveal-showing.winner-seat{border-color:#dff58f}
+.game-shell.reveal-active .bot-seat.reveal-showing .seat-heading{min-height:17px;gap:3px}
+.game-shell.reveal-active .bot-seat.reveal-showing .seat-heading strong{font-size:13px}
+.seat-reveal-equity{margin-left:auto;color:#f2dda2;font-size:17px;font-weight:850;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.seat-reveal-equity.equity-ahead{color:#c9f49d}
+.seat-reveal-equity.equity-behind{color:#f4aca7}
+.seat-reveal-window{display:flex;align-items:center;justify-content:space-between;gap:4px;min-width:0;height:47px;padding:2px 3px;border:1px solid #6e8e70;border-radius:7px;background:#10271e;transform-origin:right bottom;animation:seat-window-open 190ms ease-out both}
+.seat-reveal-cards{display:flex;gap:3px;min-width:0}
+.seat-reveal-card{display:grid;place-items:center;flex:none;width:35px;height:43px;border:1px solid #d5d2be;border-radius:4px;background:#f6f1de;color:#19271e;box-shadow:0 2px 4px #0004;font-size:21px;font-weight:850;line-height:1}
+.seat-reveal-card.hearts,.seat-reveal-card.diamonds{color:#b4343a}
+.seat-reveal-detail{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;white-space:nowrap;color:#e5eccd;font-variant-numeric:tabular-nums}
+.seat-reveal-detail strong{font-size:12px;line-height:1}
+.seat-reveal-detail small{font-size:8px;font-weight:800;letter-spacing:.3px;color:#b5c8a8}
+.seat-reveal-detail.paid strong,.seat-reveal-detail.paid small{color:#dff6a1}
+.game-shell.reveal-active .table-stage .board{top:34%;width:calc(100% - 12px);max-width:none}
+.game-shell.reveal-active .table-stage .board-brand{display:none}
+.game-shell.reveal-active .table-stage .board h1{min-height:15px;margin:1px 0;font-size:11px}
+.game-shell.reveal-active .table-stage .pot{margin:2px 0}
+.game-shell.reveal-active .table-stage .pot strong{font-size:17px}
+.game-shell.reveal-active .table-stage .community-slots span{width:31px;height:35px}
+.game-shell.reveal-active .table-stage .not-dealt{margin-top:2px}
+.game-shell.reveal-active .board .pot-results,.game-shell.reveal-active .board .pot-breakdown{display:none}
+.reveal-pot-details{position:absolute;right:0;top:calc(34% - 16px);z-index:9;color:#e8f0dd;font-size:9px}
+.reveal-pot-details summary{padding:3px 4px;border:1px solid #6c8b6f;border-radius:6px;background:#163126;cursor:pointer;white-space:nowrap;list-style:none}
+.reveal-pot-details summary::-webkit-details-marker{display:none}
+.reveal-pot-list{position:absolute;top:calc(100% + 3px);right:0;min-width:150px;max-width:min(240px,80vw);max-height:160px;overflow:auto;padding:6px 8px;border:1px solid #719371;border-radius:8px;background:#12281e;box-shadow:0 8px 18px #0009}
+.reveal-pot-list p{display:flex;flex-direction:column;gap:2px;margin:0;padding:4px 0}
+.reveal-pot-list p+p{border-top:1px solid #ffffff24}
+.reveal-pot-list strong{color:#e8f2ce}
+.reveal-pot-list small{color:#cbd8c3}
+@keyframes seat-window-open{from{opacity:.3;transform:scale(.55)}to{opacity:1;transform:scale(1)}}
+
+@media(max-width:600px){
+ .game-shell.reveal-active .bot-seat.reveal-showing{width:45%;height:52px;min-height:52px;padding:2px 3px;border-radius:8px}
+ .game-shell.reveal-active .bot-seat.reveal-top-three{width:31%}
+ .game-shell.reveal-active .bot-seat.reveal-showing .seat-heading{min-height:13px}
+ .game-shell.reveal-active .bot-seat.reveal-showing .seat-heading strong{font-size:11px}
+ .game-shell.reveal-active .bot-seat.reveal-showing .seat-roles .dealer-chip{width:14px;height:14px;font-size:8px}
+ .game-shell.reveal-active .bot-seat.reveal-showing .seat-roles .blind-chip{min-width:14px;height:14px;font-size:8px}
+ .seat-reveal-equity{font-size:13px}
+ .seat-reveal-window{height:34px;gap:2px;padding:1px 2px;border-radius:5px}
+ .seat-reveal-card{width:27px;height:31px;font-size:18px}
+ .seat-reveal-detail{gap:1px}
+ .seat-reveal-detail strong{font-size:10px}
+ .seat-reveal-detail small{font-size:7px}
+ .reveal-top-three .seat-reveal-card{width:23px;height:30px;font-size:16px}
+ .reveal-top-three .seat-reveal-detail strong{font-size:9px}
+ .reveal-top-three .seat-reveal-detail small{font-size:6.5px}
+}
+@media(max-width:600px) and (max-height:540px){
+ .game-shell.reveal-active .player-dock{min-height:52px}
+ .game-shell.reveal-active .player-row{min-height:52px}
+ .game-shell.reveal-active .table-stage .board h1{min-height:13px}
+ .game-shell.reveal-active .table-stage .community-slots span{height:32px}
+}
+@media(prefers-reduced-motion:reduce){.seat-reveal-window{animation:none}}

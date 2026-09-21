@@ -1,0 +1,5 @@
+Pon aquí tus canciones libres de derechos (MP3, OGG, M4A, WAV o WEBM).
+Se reproducen por orden de nombre y vuelven a empezar al terminar la última.
+Puedes llamarlas 01-cancion.mp3, 02-cancion.mp3, etc. para elegir el orden.
+No hace falta editar código: después sube los archivos a GitHub con el proyecto.
+Si pruebas una vista previa ya abierta, hay que volver a compilarla y recargar la página para que detecte las canciones nuevas.
