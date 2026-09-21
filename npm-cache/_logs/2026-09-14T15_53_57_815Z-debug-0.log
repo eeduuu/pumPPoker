@@ -1,0 +1,319 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.9.3
+2 info using node@v22.20.0
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\.npmrc
+5 silly config load:file:C:\Users\edupa\.npmrc
+6 silly config load:file:C:\Users\edupa\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm ci
+8 verbose argv "ci" "--ignore-scripts" "--no-audit" "--no-fund"
+9 verbose logfile logs-max:10 dir:C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\.npm-cache\_logs\2026-09-14T15_53_57_815Z-
+10 verbose logfile C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\.npm-cache\_logs\2026-09-14T15_53_57_815Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+13 silly idealTree buildDeps
+14 http fetch GET https://registry.npmjs.org/npm attempt 1 failed with EACCES
+15 silly reify moves {}
+16 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\fsevents
+17 silly reify mark deleted [
+17 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\fsevents'
+17 silly reify ]
+18 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-win32-ia32-msvc
+19 silly reify mark deleted [
+19 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-win32-ia32-msvc'
+19 silly reify ]
+20 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-win32-arm64-msvc
+21 silly reify mark deleted [
+21 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-win32-arm64-msvc'
+21 silly reify ]
+22 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-openharmony-arm64
+23 silly reify mark deleted [
+23 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-openharmony-arm64'
+23 silly reify ]
+24 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-openbsd-x64
+25 silly reify mark deleted [
+25 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-openbsd-x64'
+25 silly reify ]
+26 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-x64-musl
+27 silly reify mark deleted [
+27 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-x64-musl'
+27 silly reify ]
+28 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-x64-gnu
+29 silly reify mark deleted [
+29 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-x64-gnu'
+29 silly reify ]
+30 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-s390x-gnu
+31 silly reify mark deleted [
+31 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-s390x-gnu'
+31 silly reify ]
+32 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-riscv64-musl
+33 silly reify mark deleted [
+33 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-riscv64-musl'
+33 silly reify ]
+34 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-riscv64-gnu
+35 silly reify mark deleted [
+35 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-riscv64-gnu'
+35 silly reify ]
+36 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-ppc64-musl
+37 silly reify mark deleted [
+37 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-ppc64-musl'
+37 silly reify ]
+38 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-ppc64-gnu
+39 silly reify mark deleted [
+39 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-ppc64-gnu'
+39 silly reify ]
+40 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-loong64-musl
+41 silly reify mark deleted [
+41 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-loong64-musl'
+41 silly reify ]
+42 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-loong64-gnu
+43 silly reify mark deleted [
+43 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-loong64-gnu'
+43 silly reify ]
+44 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-arm64-musl
+45 silly reify mark deleted [
+45 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-arm64-musl'
+45 silly reify ]
+46 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-arm64-gnu
+47 silly reify mark deleted [
+47 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-arm64-gnu'
+47 silly reify ]
+48 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-arm-musleabihf
+49 silly reify mark deleted [
+49 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-arm-musleabihf'
+49 silly reify ]
+50 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-linux-arm-gnueabihf
+51 silly reify mark deleted [
+51 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-linux-arm-gnueabihf'
+51 silly reify ]
+52 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-freebsd-x64
+53 silly reify mark deleted [
+53 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-freebsd-x64'
+53 silly reify ]
+54 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-freebsd-arm64
+55 silly reify mark deleted [
+55 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-freebsd-arm64'
+55 silly reify ]
+56 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-darwin-x64
+57 silly reify mark deleted [
+57 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-darwin-x64'
+57 silly reify ]
+58 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-darwin-arm64
+59 silly reify mark deleted [
+59 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-darwin-arm64'
+59 silly reify ]
+60 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-android-arm64
+61 silly reify mark deleted [
+61 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-android-arm64'
+61 silly reify ]
+62 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-android-arm-eabi
+63 silly reify mark deleted [
+63 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-android-arm-eabi'
+63 silly reify ]
+64 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@napi-rs\lzma-linux-x64-gnu
+65 silly reify mark deleted [
+65 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@napi-rs\\lzma-linux-x64-gnu'
+65 silly reify ]
+66 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\win32-ia32
+67 silly reify mark deleted [
+67 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\win32-ia32'
+67 silly reify ]
+68 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\win32-arm64
+69 silly reify mark deleted [
+69 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\win32-arm64'
+69 silly reify ]
+70 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\sunos-x64
+71 silly reify mark deleted [
+71 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\sunos-x64'
+71 silly reify ]
+72 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\openharmony-arm64
+73 silly reify mark deleted [
+73 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\openharmony-arm64'
+73 silly reify ]
+74 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\openbsd-x64
+75 silly reify mark deleted [
+75 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\openbsd-x64'
+75 silly reify ]
+76 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\openbsd-arm64
+77 silly reify mark deleted [
+77 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\openbsd-arm64'
+77 silly reify ]
+78 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\netbsd-x64
+79 silly reify mark deleted [
+79 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\netbsd-x64'
+79 silly reify ]
+80 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\netbsd-arm64
+81 silly reify mark deleted [
+81 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\netbsd-arm64'
+81 silly reify ]
+82 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\linux-x64
+83 silly reify mark deleted [
+83 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\linux-x64'
+83 silly reify ]
+84 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\linux-s390x
+85 silly reify mark deleted [
+85 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\linux-s390x'
+85 silly reify ]
+86 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\linux-riscv64
+87 silly reify mark deleted [
+87 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\linux-riscv64'
+87 silly reify ]
+88 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\linux-ppc64
+89 silly reify mark deleted [
+89 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\linux-ppc64'
+89 silly reify ]
+90 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\linux-mips64el
+91 silly reify mark deleted [
+91 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\linux-mips64el'
+91 silly reify ]
+92 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\linux-loong64
+93 silly reify mark deleted [
+93 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\linux-loong64'
+93 silly reify ]
+94 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\linux-ia32
+95 silly reify mark deleted [
+95 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\linux-ia32'
+95 silly reify ]
+96 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\linux-arm64
+97 silly reify mark deleted [
+97 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\linux-arm64'
+97 silly reify ]
+98 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\linux-arm
+99 silly reify mark deleted [
+99 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\linux-arm'
+99 silly reify ]
+100 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\freebsd-x64
+101 silly reify mark deleted [
+101 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\freebsd-x64'
+101 silly reify ]
+102 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\freebsd-arm64
+103 silly reify mark deleted [
+103 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\freebsd-arm64'
+103 silly reify ]
+104 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\darwin-x64
+105 silly reify mark deleted [
+105 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\darwin-x64'
+105 silly reify ]
+106 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\darwin-arm64
+107 silly reify mark deleted [
+107 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\darwin-arm64'
+107 silly reify ]
+108 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\android-x64
+109 silly reify mark deleted [
+109 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\android-x64'
+109 silly reify ]
+110 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\android-arm64
+111 silly reify mark deleted [
+111 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\android-arm64'
+111 silly reify ]
+112 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\android-arm
+113 silly reify mark deleted [
+113 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\android-arm'
+113 silly reify ]
+114 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@esbuild\aix-ppc64
+115 silly reify mark deleted [
+115 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@esbuild\\aix-ppc64'
+115 silly reify ]
+116 http cache vite@https://registry.npmjs.org/vite/-/vite-7.3.6.tgz 2ms (cache hit)
+117 http cache typescript@https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz 0ms (cache hit)
+118 http cache source-map-js@https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz 0ms (cache hit)
+119 http cache scheduler@https://registry.npmjs.org/scheduler/-/scheduler-0.27.0.tgz 0ms (cache hit)
+120 http cache tinyglobby@https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.17.tgz 0ms (cache hit)
+121 http cache rollup@https://registry.npmjs.org/rollup/-/rollup-4.63.1.tgz 0ms (cache hit)
+122 http cache react-dom@https://registry.npmjs.org/react-dom/-/react-dom-19.2.8.tgz 0ms (cache hit)
+123 http cache postcss@https://registry.npmjs.org/postcss/-/postcss-8.5.28.tgz 0ms (cache hit)
+124 http cache picomatch@https://registry.npmjs.org/picomatch/-/picomatch-4.0.7.tgz 1ms (cache hit)
+125 http cache nanoid@https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz 0ms (cache hit)
+126 http cache picocolors@https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz 0ms (cache hit)
+127 http cache esbuild@https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz 0ms (cache hit)
+128 http cache fdir@https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz 0ms (cache hit)
+129 http cache react@https://registry.npmjs.org/react/-/react-19.2.8.tgz 0ms (cache hit)
+130 http cache @rollup/rollup-win32-x64-msvc@https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.63.1.tgz 0ms (cache hit)
+131 http cache csstype@https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz 0ms (cache hit)
+132 http cache @rollup/rollup-win32-x64-gnu@https://registry.npmjs.org/@rollup/rollup-win32-x64-gnu/-/rollup-win32-x64-gnu-4.63.1.tgz 0ms (cache hit)
+133 http cache @types/estree@https://registry.npmjs.org/@types/estree/-/estree-1.0.9.tgz 1ms (cache hit)
+134 silly tarball no local data for vite@https://registry.npmjs.org/vite/-/vite-7.3.6.tgz. Extracting by manifest.
+135 http cache @types/react-dom@https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.7.tgz 0ms (cache hit)
+136 silly tarball no local data for typescript@https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz. Extracting by manifest.
+137 silly tarball no local data for source-map-js@https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz. Extracting by manifest.
+138 silly tarball no local data for scheduler@https://registry.npmjs.org/scheduler/-/scheduler-0.27.0.tgz. Extracting by manifest.
+139 http cache @esbuild/win32-x64@https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.28.2.tgz 0ms (cache hit)
+140 silly tarball no local data for tinyglobby@https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.17.tgz. Extracting by manifest.
+141 silly tarball no local data for rollup@https://registry.npmjs.org/rollup/-/rollup-4.63.1.tgz. Extracting by manifest.
+142 silly tarball no local data for react-dom@https://registry.npmjs.org/react-dom/-/react-dom-19.2.8.tgz. Extracting by manifest.
+143 silly tarball no local data for postcss@https://registry.npmjs.org/postcss/-/postcss-8.5.28.tgz. Extracting by manifest.
+144 silly tarball no local data for picomatch@https://registry.npmjs.org/picomatch/-/picomatch-4.0.7.tgz. Extracting by manifest.
+145 silly tarball no local data for nanoid@https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz. Extracting by manifest.
+146 silly tarball no local data for picocolors@https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz. Extracting by manifest.
+147 http cache @types/react@https://registry.npmjs.org/@types/react/-/react-19.2.18.tgz 0ms (cache hit)
+148 silly tarball no local data for esbuild@https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz. Extracting by manifest.
+149 silly tarball no local data for fdir@https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz. Extracting by manifest.
+150 silly tarball no local data for react@https://registry.npmjs.org/react/-/react-19.2.8.tgz. Extracting by manifest.
+151 silly tarball no local data for @rollup/rollup-win32-x64-msvc@https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.63.1.tgz. Extracting by manifest.
+152 silly tarball no local data for csstype@https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz. Extracting by manifest.
+153 silly tarball no local data for @rollup/rollup-win32-x64-gnu@https://registry.npmjs.org/@rollup/rollup-win32-x64-gnu/-/rollup-win32-x64-gnu-4.63.1.tgz. Extracting by manifest.
+154 silly tarball no local data for @types/estree@https://registry.npmjs.org/@types/estree/-/estree-1.0.9.tgz. Extracting by manifest.
+155 silly tarball no local data for @types/react-dom@https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.7.tgz. Extracting by manifest.
+156 silly tarball no local data for @esbuild/win32-x64@https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.28.2.tgz. Extracting by manifest.
+157 silly tarball no local data for @types/react@https://registry.npmjs.org/@types/react/-/react-19.2.18.tgz. Extracting by manifest.
+158 http fetch GET https://registry.npmjs.org/vite/-/vite-7.3.6.tgz attempt 1 failed with EACCES
+159 http fetch GET https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz attempt 1 failed with EACCES
+160 http fetch GET https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz attempt 1 failed with EACCES
+161 http fetch GET https://registry.npmjs.org/scheduler/-/scheduler-0.27.0.tgz attempt 1 failed with EACCES
+162 http fetch GET https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.17.tgz attempt 1 failed with EACCES
+163 http fetch GET https://registry.npmjs.org/rollup/-/rollup-4.63.1.tgz attempt 1 failed with EACCES
+164 http fetch GET https://registry.npmjs.org/react-dom/-/react-dom-19.2.8.tgz attempt 1 failed with EACCES
+165 http fetch GET https://registry.npmjs.org/postcss/-/postcss-8.5.28.tgz attempt 1 failed with EACCES
+166 http fetch GET https://registry.npmjs.org/picomatch/-/picomatch-4.0.7.tgz attempt 1 failed with EACCES
+167 http fetch GET https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz attempt 1 failed with EACCES
+168 http fetch GET https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz attempt 1 failed with EACCES
+169 http fetch GET https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz attempt 1 failed with EACCES
+170 http fetch GET https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz attempt 1 failed with EACCES
+171 http fetch GET https://registry.npmjs.org/react/-/react-19.2.8.tgz attempt 1 failed with EACCES
+172 http fetch GET https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.63.1.tgz attempt 1 failed with EACCES
+173 http fetch GET https://registry.npmjs.org/npm attempt 2 failed with EACCES
+174 http fetch GET https://registry.npmjs.org/vite/-/vite-7.3.6.tgz attempt 2 failed with EACCES
+175 http fetch GET https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz attempt 2 failed with EACCES
+176 http fetch GET https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz attempt 2 failed with EACCES
+177 http fetch GET https://registry.npmjs.org/scheduler/-/scheduler-0.27.0.tgz attempt 2 failed with EACCES
+178 http fetch GET https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.17.tgz attempt 2 failed with EACCES
+179 http fetch GET https://registry.npmjs.org/rollup/-/rollup-4.63.1.tgz attempt 2 failed with EACCES
+180 http fetch GET https://registry.npmjs.org/react-dom/-/react-dom-19.2.8.tgz attempt 2 failed with EACCES
+181 http fetch GET https://registry.npmjs.org/postcss/-/postcss-8.5.28.tgz attempt 2 failed with EACCES
+182 http fetch GET https://registry.npmjs.org/picomatch/-/picomatch-4.0.7.tgz attempt 2 failed with EACCES
+183 http fetch GET https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz attempt 2 failed with EACCES
+184 http fetch GET https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz attempt 2 failed with EACCES
+185 http fetch GET https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz attempt 2 failed with EACCES
+186 http fetch GET https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz attempt 2 failed with EACCES
+187 http fetch GET https://registry.npmjs.org/react/-/react-19.2.8.tgz attempt 2 failed with EACCES
+188 http fetch GET https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.63.1.tgz attempt 2 failed with EACCES
+189 http fetch GET https://registry.npmjs.org/npm attempt 3 failed with EACCES
+190 http fetch GET https://registry.npmjs.org/vite/-/vite-7.3.6.tgz attempt 3 failed with EACCES
+191 http fetch GET https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz attempt 3 failed with EACCES
+192 http fetch GET https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz attempt 3 failed with EACCES
+193 http fetch GET https://registry.npmjs.org/scheduler/-/scheduler-0.27.0.tgz attempt 3 failed with EACCES
+194 http fetch GET https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.17.tgz attempt 3 failed with EACCES
+195 http fetch GET https://registry.npmjs.org/rollup/-/rollup-4.63.1.tgz attempt 3 failed with EACCES
+196 http fetch GET https://registry.npmjs.org/react-dom/-/react-dom-19.2.8.tgz attempt 3 failed with EACCES
+197 http fetch GET https://registry.npmjs.org/postcss/-/postcss-8.5.28.tgz attempt 3 failed with EACCES
+198 http fetch GET https://registry.npmjs.org/picomatch/-/picomatch-4.0.7.tgz attempt 3 failed with EACCES
+199 http fetch GET https://registry.npmjs.org/nanoid/-/nanoid-3.3.18.tgz attempt 3 failed with EACCES
+200 http fetch GET https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz attempt 3 failed with EACCES
+201 http fetch GET https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz attempt 3 failed with EACCES
+202 http fetch GET https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz attempt 3 failed with EACCES
+203 http fetch GET https://registry.npmjs.org/react/-/react-19.2.8.tgz attempt 3 failed with EACCES
+204 http fetch GET https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.63.1.tgz attempt 3 failed with EACCES
+205 verbose reify failed optional dependency C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\node_modules\@rollup\rollup-win32-x64-msvc
+206 silly reify mark deleted [
+206 silly reify   'C:\\Users\\edupa\\OneDrive\\Escritorio\\Personal\\5 Github\\3 pumPPoker\\node_modules\\@rollup\\rollup-win32-x64-msvc'
+206 silly reify ]
+207 verbose cwd C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker
+208 verbose os Windows_NT 10.0.26200
+209 verbose node v22.20.0
+210 verbose npm  v10.9.3
+211 error Exit handler never called!
+212 error This is an error with npm itself. Please report this error at:
+213 error   <https://github.com/npm/cli/issues>
+214 verbose exit 1
+215 verbose code 1
+216 error A complete log of this run can be found in: C:\Users\edupa\OneDrive\Escritorio\Personal\5 Github\3 pumPPoker\.npm-cache\_logs\2026-09-14T15_53_57_815Z-debug-0.log
