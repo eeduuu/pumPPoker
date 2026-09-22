@@ -52,9 +52,10 @@ button.game-choice:hover{border-color:var(--accent);background:#25382d;transform
 .game-choice strong{display:block;font-family:Georgia,serif;font-size:20px;font-weight:500}
 .game-choice small{display:block;margin-top:7px;color:var(--muted);font-size:11px;line-height:1.4}
 .game-choice>i{color:var(--accent);font-size:20px;font-style:normal}
-.blackjack-choice,.mesa-choice,.multiplayer-choice{opacity:.62}
-.blackjack-choice .game-choice-icon,.mesa-choice .game-choice-icon,.multiplayer-choice .game-choice-icon{background:#23372d;color:#d9e3d7}
-.blackjack-choice small,.mesa-choice small,.multiplayer-choice small{text-transform:uppercase;letter-spacing:1px;color:#c6dc82}
+.mesa-choice,.multiplayer-choice{opacity:.62}
+.mesa-choice .game-choice-icon,.multiplayer-choice .game-choice-icon{background:#23372d;color:#d9e3d7}
+.mesa-choice small,.multiplayer-choice small{text-transform:uppercase;letter-spacing:1px;color:#c6dc82}
+.blackjack-ready{max-width:520px;margin:0;padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:#192a23;color:#c9d7cc;font-size:14px;line-height:1.65}
 .install-wrap{margin-top:15px}
 .install-card{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:58px;padding:10px 16px;border:1px dashed #607568;border-radius:12px;background:#14251e;color:#e8efe5;text-align:left}
 button.install-card:hover{border-style:solid;border-color:var(--accent);background:#1a2e24}

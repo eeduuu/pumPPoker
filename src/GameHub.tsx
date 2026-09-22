@@ -1,9 +1,10 @@
 import { AudioPreferences, useFeedback } from './feedback';
 import { BrandLogo } from './BrandLogo';
 
-export function GameHub({ onTexas, onBack }: { onTexas: () => void; onBack: () => void }) {
+export function GameHub({ onTexas, onBlackjack, onBack }: { onTexas: () => void; onBlackjack: () => void; onBack: () => void }) {
   const { feedback } = useFeedback();
   const enterTexas = () => { feedback('navigate'); onTexas(); };
+  const enterBlackjack = () => { feedback('navigate'); onBlackjack(); };
   const returnHome = () => { feedback('navigate'); onBack(); };
   return <main className="shell hub-shell">
     <header><div className="brand"><BrandLogo/></div><div className="header-controls"><button className="games-back" type="button" onClick={returnHome}>← Inicio</button><AudioPreferences/></div></header>
@@ -14,9 +15,9 @@ export function GameHub({ onTexas, onBack }: { onTexas: () => void; onBack: () =
         <button className="game-choice texas-choice" type="button" onClick={enterTexas}>
           <span className="game-choice-icon" aria-hidden="true">♠</span><span><strong>Texas Hold’em</strong><small>Partida normal o torneo contra bots</small></span><i aria-hidden="true">→</i>
         </button>
-        <div className="game-choice blackjack-choice" aria-disabled="true">
-          <span className="game-choice-icon" aria-hidden="true">21</span><span><strong>Blackjack</strong><small>Próximamente</small></span><i aria-hidden="true">♣</i>
-        </div>
+        <button className="game-choice blackjack-choice" type="button" onClick={enterBlackjack}>
+          <span className="game-choice-icon" aria-hidden="true">21</span><span><strong>Blackjack</strong><small>Juega contra la banca</small></span><i aria-hidden="true">→</i>
+        </button>
       </div>
     </section>
     <div className="bottom">TODO EN UNA SOLA APP.<span>ELIGE Y JUEGA</span></div>

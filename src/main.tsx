@@ -9,6 +9,8 @@ import { AudioPreferences, FeedbackProvider, useFeedback } from './feedback';
 import { GameHub } from './GameHub';
 import { HomeHub } from './HomeHub';
 import { TexasModeHub } from './TexasModeHub';
+import { BlackjackModeHub } from './BlackjackModeHub';
+import { BlackjackSoloHub } from './BlackjackSoloHub';
 import { displayPlayerName, readPlayerName, savePlayerName } from './playerProfile';
 import { createInitialHand } from './poker/initialHand';
 import type { InitialHand } from './poker/initialHand';
@@ -18,7 +20,7 @@ type Config = { mode: 'normal' | 'tournament'; bots: number; chips: number; smal
 const initial: Config = { mode: 'normal', bots: 3, chips: 5000, small: 25, big: 50, minutes: 10, growing: false, breaks: true, every: 3, rest: 5 };
 const titles = ['Tu partida, tus reglas.', '¿Quién se sienta?', 'Marca el ritmo.', 'Todo listo para empezar.'];
 function App() {
- const [screen,setScreen]=useState<'home'|'hub'|'texas-mode'|'texas'>('home');
+ const [screen,setScreen]=useState<'home'|'hub'|'texas-mode'|'texas'|'blackjack-mode'|'blackjack-solo'>('home');
  const [playerName,setPlayerName]=useState(readPlayerName);
  useEffect(()=>savePlayerName(playerName),[playerName]);
  const displayedName=displayPlayerName(playerName);
@@ -42,8 +44,10 @@ function App() {
  const numeric = (key: 'chips' | 'small' | 'big' | 'minutes' | 'every' | 'rest', label: string, min: number, max: number) => <label>{label}<input type="number" inputMode="numeric" required min={min} max={max} step="1" value={c[key] || ''} onChange={e => set(key, Number(e.target.value))}/></label>;
  const move = (value: number) => { setStep(value); };
  if(screen==='home')return <HomeHub onCasino={()=>setScreen('hub')} playerName={playerName} onPlayerNameChange={setPlayerName}/>;
- if(screen==='hub')return <GameHub onTexas={()=>setScreen('texas-mode')} onBack={()=>setScreen('home')}/>;
+ if(screen==='hub')return <GameHub onTexas={()=>setScreen('texas-mode')} onBlackjack={()=>setScreen('blackjack-mode')} onBack={()=>setScreen('home')}/>;
  if(screen==='texas-mode')return <TexasModeHub onSolo={()=>setScreen('texas')} onBack={()=>setScreen('hub')}/>;
+ if(screen==='blackjack-mode')return <BlackjackModeHub onSolo={()=>setScreen('blackjack-solo')} onBack={()=>setScreen('hub')}/>;
+ if(screen==='blackjack-solo')return <BlackjackSoloHub playerName={displayedName} onBack={()=>setScreen('blackjack-mode')}/>;
  if (tableHand) return <Table key={tableSession} config={c} hand={tableHand} playerName={displayedName} onRestart={restartTable} onLeave={() => { opening.current = false; setTableHand(null); setStep(0); }}/ >;
  return <main className="shell"><header><div className="brand"><BrandLogo/></div><div className="header-controls"><button className="games-back" type="button" onClick={()=>{feedback('navigate');setStep(0);setScreen('texas-mode');}}>← Modos</button><AudioPreferences/></div></header>
  <section className="wizard" aria-label="Crear partida"><div className="eyebrow">TEXAS HOLD’EM <span>•</span> {displayedName.toLocaleUpperCase('es')} CONTRA LOS BOTS</div><nav aria-label="Progreso"><ol>{['Partida', 'Jugadores', 'Ritmo', 'Resumen'].map((name, i) => <li key={name} className={i === step ? 'active' : i < step ? 'done' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? '✓' : i + 1}</span><small>{name}</small></li>)}</ol></nav>

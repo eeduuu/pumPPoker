@@ -457,11 +457,24 @@ test('La app instalable usa rutas relativas compatibles con GitHub Pages', async
   assert.match(worker, /key\.startsWith\('pumpoker-shell-'\)/);
 });
 
-test('Blackjack queda visible pero bloqueado hasta definir su juego', async () => {
-  const source = await readFile(new URL('../src/GameHub.tsx', import.meta.url), 'utf8');
-  assert.match(source, /Blackjack/);
-  assert.match(source, /Próximamente/);
-  assert.match(source, /aria-disabled="true"/);
+test('Blackjack permite elegir modo y jugar en mesa propia sin activar multijugador', async () => {
+  const [hub,modes,solo,app] = await Promise.all([
+    readFile(new URL('../src/GameHub.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/BlackjackModeHub.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/BlackjackSoloHub.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(hub, /<button className="game-choice blackjack-choice" type="button" onClick=\{enterBlackjack\}>/);
+  assert.match(hub, /<strong>Blackjack<\/strong><small>Juega contra la banca<\/small>/);
+  assert.match(modes, /<strong>Multijugador<\/strong><small>Próximamente<\/small>/);
+  assert.match(modes, /className="game-choice multiplayer-choice" aria-disabled="true"/);
+  assert.match(modes, /<strong>1 jugador<\/strong><small>Juega contra la banca<\/small>/);
+  assert.match(solo, /BLACKJACK · 1 JUGADOR/);
+  assert.match(solo, /Entrar a la mesa/);
+  assert.match(solo, /Apostar y repartir/);
+  assert.match(app, /onBlackjack=\{\(\)=>setScreen\('blackjack-mode'\)\}/);
+  assert.match(app, /<BlackjackModeHub onSolo=\{\(\)=>setScreen\('blackjack-solo'\)\}/);
+  assert.match(app, /<BlackjackSoloHub playerName=\{displayedName\} onBack=\{\(\)=>setScreen\('blackjack-mode'\)\}/);
 });
 
 test('La pantalla inicial separa Casino y Mesa y conserva el recorrido a Texas', async () => {
@@ -471,9 +484,9 @@ test('La pantalla inicial separa Casino y Mesa y conserva el recorrido a Texas',
     readFile(new URL('../src/TexasModeHub.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.match(app, /useState<'home'\|'hub'\|'texas-mode'\|'texas'>\('home'\)/);
+  assert.match(app, /useState<'home'\|'hub'\|'texas-mode'\|'texas'\|'blackjack-mode'\|'blackjack-solo'>\('home'\)/);
   assert.match(app, /<HomeHub onCasino=\{\(\)=>setScreen\('hub'\)\}/);
-  assert.match(app, /<GameHub onTexas=\{\(\)=>setScreen\('texas-mode'\)\} onBack=\{\(\)=>setScreen\('home'\)\}/);
+  assert.match(app, /<GameHub onTexas=\{\(\)=>setScreen\('texas-mode'\)\} onBlackjack=\{\(\)=>setScreen\('blackjack-mode'\)\} onBack=\{\(\)=>setScreen\('home'\)\}/);
   assert.match(app, /<TexasModeHub onSolo=\{\(\)=>setScreen\('texas'\)\} onBack=\{\(\)=>setScreen\('hub'\)\}/);
   assert.match(home, /<strong>Casino<\/strong>/);
   assert.match(home, /<small>Juegos de casino<\/small>/);

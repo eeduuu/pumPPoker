@@ -12,13 +12,14 @@ const FUSE_PATH = 'M95 30 C89 41 80 39 79 23 C78 5 66 4 55 5 C43 3 39 9 40 20';
 type Target = { dx: number; dy: number; origin: number; scale: number };
 
 export function EliminationAnimation({
-  seat, name, onBlast, onComplete, feedback,
+  seat, name, onBlast, onComplete, feedback, targetSelector,
 }: {
   seat: number;
   name: string;
   onBlast: () => void;
   onComplete: () => void;
   feedback: (kind: 'ignite' | 'blast') => void;
+  targetSelector?: string;
 }) {
   const [target, setTarget] = useState<Target | null>(null);
   const [paused, setPaused] = useState(document.hidden);
@@ -47,9 +48,11 @@ export function EliminationAnimation({
 
   useLayoutEffect(() => {
     const measure = () => {
-      const element = seat === 0
-        ? document.querySelector<HTMLElement>('.player-dock .private-slots')
-        : document.querySelector<HTMLElement>(`[data-seat="${seat}"]`);
+      const element = targetSelector
+        ? document.querySelector<HTMLElement>(targetSelector)
+        : seat === 0
+          ? document.querySelector<HTMLElement>('.player-dock .private-slots')
+          : document.querySelector<HTMLElement>(`[data-seat="${seat}"]`);
       if (!element) return;
       const rect = element.getBoundingClientRect();
       const origin = Math.min(window.innerWidth * .75, window.innerHeight * .5, 420);
@@ -64,7 +67,7 @@ export function EliminationAnimation({
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [seat]);
+  }, [seat, targetSelector]);
 
   useEffect(() => {
     if (!target) return;
