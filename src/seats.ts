@@ -24,3 +24,12 @@ export const mobileLayouts: typeof layouts = {
  7: [[20, 91], [12, 73], [16, 31], [50, 12], [84, 31], [88, 73], [80, 91]],
  8: [[20, 91], [12, 73], [15, 31], [38, 12], [62, 12], [85, 31], [88, 73], [80, 91]],
 };
+
+// Side seats beside the message follow the rim, regardless of screen width.
+// Use the same position for the seat and its incoming card animation.
+export function mobileSeatLeft(bots: number, index: number): string {
+ const [x, y] = mobileLayouts[bots][index];
+ if (y >= 65 && y <= 80 && x <= 20) return 'calc(var(--mobile-seat-width) / 2 + 4px)';
+ if (y >= 65 && y <= 80 && x >= 80) return 'calc(100% - var(--mobile-seat-width) / 2 - 4px)';
+ return `${x}%`;
+}

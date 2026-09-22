@@ -18,7 +18,7 @@ export function EliminationAnimation({
   name: string;
   onBlast: () => void;
   onComplete: () => void;
-  feedback: (kind: 'ignite' | 'blast', vibrate?: boolean) => void;
+  feedback: (kind: 'ignite' | 'blast') => void;
 }) {
   const [target, setTarget] = useState<Target | null>(null);
   const [paused, setPaused] = useState(document.hidden);
@@ -123,7 +123,7 @@ export function EliminationAnimation({
         exploded = true;
         explosionPlayed.current = true;
         blastCallback.current();
-        feedback('blast', seat === 0);
+        feedback('blast');
       }, Math.max(0, EXPLOSION_AT_MS - elapsed));
       endTimer = setTimeout(() => completeCallback.current(), Math.max(0, ELIMINATION_MS - elapsed));
     };

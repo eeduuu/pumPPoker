@@ -4,7 +4,7 @@ import { InstallApp } from './InstallApp';
 
 export function HomeHub({ onCasino, playerName, onPlayerNameChange }: { onCasino: () => void; playerName: string; onPlayerNameChange: (name: string) => void }) {
   const { feedback } = useFeedback();
-  const enterCasino = () => { feedback('navigate', true); onCasino(); };
+  const enterCasino = () => { feedback('navigate'); onCasino(); };
 
   return <main className="shell hub-shell">
     <header><div className="brand"><BrandLogo/></div><AudioPreferences/></header>

@@ -21,7 +21,7 @@ function App() {
  const [playerName,setPlayerName]=useState(readPlayerName);
  useEffect(()=>savePlayerName(playerName),[playerName]);
  const displayedName=displayPlayerName(playerName);
- const {feedback}=useFeedback();
+ const {feedback,haptic}=useFeedback();
  const [step, setStep] = useState(0); const [c, setC] = useState(initial); const [tableHand, setTableHand] = useState<InitialHand | null>(null);
  const [tableSession,setTableSession]=useState(0);
  const opening = useRef(false);
@@ -29,11 +29,11 @@ function App() {
  const enterTable = () => {
   if (opening.current) return;
   opening.current = true;
-  try { const hand = createInitialHand(c); feedback('start',true); setTableHand(hand); setTableSession(value=>value+1); setTableError(''); }
+  try { const hand = createInitialHand(c); feedback('start'); haptic('GAME_START'); setTableHand(hand); setTableSession(value=>value+1); setTableError(''); }
   catch { opening.current = false; setTableError('No se pudo crear el reparto seguro. Vuelve a intentarlo.'); }
  };
  const restartTable=()=>{
-  try{opening.current=true;const hand=createInitialHand(c);feedback('start',true);setTableHand(hand);setTableSession(value=>value+1);setTableError('');}
+  try{opening.current=true;const hand=createInitialHand(c);feedback('start');haptic('GAME_START');setTableHand(hand);setTableSession(value=>value+1);setTableError('');}
   catch{opening.current=false;setTableHand(null);setStep(3);setTableError('No se pudo crear el reparto seguro. Vuelve a intentarlo.');}
  };
  const set = <K extends keyof Config>(key: K, value: Config[K]) => { setC(old => ({ ...old, [key]: value })); };
@@ -43,7 +43,7 @@ function App() {
  if(screen==='hub')return <GameHub onTexas={()=>setScreen('texas-mode')} onBack={()=>setScreen('home')}/>;
  if(screen==='texas-mode')return <TexasModeHub onSolo={()=>setScreen('texas')} onBack={()=>setScreen('hub')}/>;
  if (tableHand) return <Table key={tableSession} config={c} hand={tableHand} playerName={displayedName} onRestart={restartTable} onLeave={() => { opening.current = false; setTableHand(null); setStep(0); }}/ >;
- return <main className="shell"><header><div className="brand"><BrandLogo/></div><div className="header-controls"><button className="games-back" type="button" onClick={()=>{feedback('navigate',true);setStep(0);setScreen('texas-mode');}}>← Modos</button><AudioPreferences/></div></header>
+ return <main className="shell"><header><div className="brand"><BrandLogo/></div><div className="header-controls"><button className="games-back" type="button" onClick={()=>{feedback('navigate');setStep(0);setScreen('texas-mode');}}>← Modos</button><AudioPreferences/></div></header>
  <section className="wizard" aria-label="Crear partida"><div className="eyebrow">TEXAS HOLD’EM <span>•</span> {displayedName.toLocaleUpperCase('es')} CONTRA LOS BOTS</div><nav aria-label="Progreso"><ol>{['Partida', 'Jugadores', 'Ritmo', 'Resumen'].map((name, i) => <li key={name} className={i === step ? 'active' : i < step ? 'done' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? '✓' : i + 1}</span><small>{name}</small></li>)}</ol></nav>
  <form onSubmit={e => { e.preventDefault(); if (step < 3) move(step + 1); else enterTable(); }}><div className="heading"><p>PASO {step + 1} DE 4</p><h1>{titles[step]}</h1><div>{['Elige cómo quieres jugar esta vez.', 'Una persona. Hasta ocho rivales. Cero presión.', 'Ajusta las ciegas y el tiempo a tu manera.', 'Revisa los ajustes de tu próxima partida.'][step]}</div></div>
  <div className="content">

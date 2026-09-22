@@ -4,8 +4,10 @@ import { readFile } from 'node:fs/promises';
 import { defaultFeedbackSettings, normalizeFeedbackSettings, normalizeVolume } from '../src/preferences.ts';
 import { orderedMusicUrls } from '../src/musicPlaylist.ts';
 import { GameAudio } from '../src/audioEngine.ts';
-import { playVibration, vibrationAvailable, vibrationPatterns } from '../src/vibration.ts';
-import { mobileLayouts } from '../src/seats.ts';
+import { HapticsService, vibrationPatterns } from '../src/vibration.ts';
+import { preselectedAction, validPreselection } from '../src/poker/preselectedAction.ts';
+import { fitBoardCenter } from '../src/boardPlacement.ts';
+import { mobileLayouts, mobileSeatLeft } from '../src/seats.ts';
 import { handSeatStatus, tournamentSeatEliminated, newlyEliminatedSeats } from '../src/seatStatus.ts';
 import { displayPlayerName, normalizePlayerName, readPlayerName, savePlayerName } from '../src/playerProfile.ts';
 
@@ -52,7 +54,8 @@ test('Las eliminaciones se presentan de una en una durante tres segundos y pausa
   assert.match(styles, /elimination-reduced var\(--elimination-duration\)/);
   assert.doesNotMatch(styles, /5000ms/, 'La animación ya no conserva tramos de cinco segundos');
   assert.match(animation, /feedback\('ignite'\)/);
-  assert.match(animation, /feedback\('blast', seat === 0\)/, 'Solo vibra si la explosión ocurre en tu asiento');
+  assert.match(animation, /feedback\('blast'\)/, 'El sonido de la explosión es independiente de la vibración');
+  assert.match(table, /if\(eliminationSeat===0\)haptic\('ELIMINATED'\)/, 'Solo vibra si la explosión ocurre en tu asiento');
   assert.match(animation, /completeCallback\.current\(\)/);
   assert.match(table, /setEliminationIndex\(index=>index\+1\)/);
   assert.match(table, /\|\|eliminationActive\)/, 'El reloj se detiene');
@@ -105,8 +108,10 @@ test('La mesa móvil usa un óvalo, ocho bots como máximo y tu asiento dentro d
   assert.deepEqual(mobileLayouts[8], [[20,91],[12,73],[15,31],[38,12],[62,12],[85,31],[88,73],[80,91]]);
   assert.match(table, /portrait\?mobileLayouts\[config\.bots\]\[i\]/, 'Los perfiles mantienen su identificador horario');
   assert.match(table, /\(portrait\?mobileLayouts:layouts\)\[config\.bots\]\[frame\.flyingSeat-1\]/, 'El reparto apunta al asiento visible');
+  assert.match(table, /left: portrait\?mobileSeatLeft\(config\.bots,i\)/, 'Los asientos laterales siguen el borde en cualquier anchura móvil');
+  assert.match(table, /const destinationLeft=[^;]*mobileSeatLeft\(config\.bots,frame\.flyingSeat-1\)/, 'Las cartas vuelan a la misma posición que el asiento');
   assert.match(table, /portrait\?\[50,97\]:\[50,98\]/, 'La carta propia vuela hasta el asiento inferior sin alterar el reparto de PC');
-  assert.match(table, /<div className="table-surface">[\s\S]*<section className=\{"table-stage/);
+  assert.match(table, /<div className="table-surface">[\s\S]*<section ref=\{stageRef\} className=\{"table-stage/);
   assert.match(table, /<section className=\{"player-dock"[\s\S]*<\/section>\s*<\/div>/);
   assert.match(table, /hand\.players\.filter\(p=>p\.cards\.length>0\)\.length\} JUGADORES/, 'El contador incluye a quien recibió cartas, no solo bots');
   assert.match(styles, /\.table-surface\{display:contents\}/, 'El escritorio conserva su estructura actual');
@@ -114,10 +119,11 @@ test('La mesa móvil usa un óvalo, ocho bots como máximo y tu asiento dentro d
   assert.match(styles, /\.table-surface \.player-dock \.player-row\{[^}]*width:min\(70%,260px\)/, 'Tu asiento se integra en el extremo inferior del óvalo');
   assert.match(styles, /\.table-surface \.player-dock \.raise-panel\{position:absolute;right:0;bottom:0;left:0;height:90px/, 'El panel de subida no añade scroll');
   assert.match(styles, /\.game-shell\.reveal-active \.table-surface \.player-dock \.human-equity\{position:absolute;top:17px;right:6px/, 'El porcentaje propio no queda tapado por las cartas');
-  assert.match(styles, /\.seat-count-7,\.seat-count-8\) \.bot-seat\.reveal-showing\{height:58px/, 'Las cartas reveladas de perfiles vecinos no se pisan en móviles bajos');
+  assert.match(styles, /max-height:620px\)[\s\S]*\.seat-count-7,\.seat-count-8\) \.bot-seat\.reveal-showing\{height:56px;min-height:0;padding:1px\}/, 'Las cartas reveladas de perfiles vecinos no se pisan en móviles bajos');
   assert.match(table, /className="board-rank"/);
   assert.match(table, /className="board-suit"/);
   assert.match(styles, /--mobile-seat-width:clamp\(70px,22vw,90px\)/);
+  assert.match(styles, /\.table-surface \.table-stage\{[^}]*--mobile-seat-width:clamp\(70px,22vw,90px\)/, 'El ancho del asiento también está disponible para el texto central');
   assert.match(styles, /\.table-stage \.board,\.game-shell\.reveal-active \.table-stage \.board\{width:100%;max-width:none;top:48%/);
   assert.match(styles, /\.community-slots>span,\.game-shell\.reveal-active \.table-stage \.board \.community-slots>span\{flex:0 0 clamp\(54px,17\.5vw,68px\)/, 'La carta revelada gana la prioridad visual frente al diseño compacto anterior');
   assert.match(styles, /\.game-shell\.reveal-active \.table-stage \.board \.community-slots>span\{height:clamp\(62px,19vw,70px\)/, 'La altura también se conserva en móviles bajos');
@@ -125,6 +131,97 @@ test('La mesa móvil usa un óvalo, ocho bots como máximo y tu asiento dentro d
   assert.doesNotMatch(revealStyles, /\.community-slots span\{/, 'El resultado no convierte rango y palo en cartas gigantes');
   assert.match(styles, /\.seat-stack\{font-size:clamp\(13px,3\.7vw,15px\)/);
   assert.match(styles, /\.seat-wager\{padding:1px 4px;font-size:clamp\(10px,3vw,12px\)/);
+});
+
+test('Los asientos laterales dejan libre el pasillo central con cualquier número de rivales', () => {
+  const sideSeats = { 3: [0, 2], 4: [0, 3], 5: [0, 4], 6: [0, 5], 7: [1, 5], 8: [1, 6] };
+  for (let bots = 1; bots <= 8; bots++) {
+    for (let seat = 0; seat < bots; seat++) {
+      const left = mobileSeatLeft(bots, seat);
+      const sideIndex = sideSeats[bots]?.indexOf(seat) ?? -1;
+      if (sideIndex === 0) assert.equal(left, 'calc(var(--mobile-seat-width) / 2 + 4px)');
+      else if (sideIndex === 1) assert.equal(left, 'calc(100% - var(--mobile-seat-width) / 2 - 4px)');
+      else assert.equal(left, `${mobileLayouts[bots][seat][0]}%`);
+    }
+  }
+});
+
+test('La acción anticipada nunca convierte pasar en igualar ni acepta una subida nueva', () => {
+  const betting = {
+    status: 'playing', pending: [0, 1], actor: 1, bet: 0,
+    players: [{ seat: 0, stack: 100, committed: 0, folded: false }, { seat: 1, stack: 100, committed: 0, folded: false }],
+  };
+  const check = preselectedAction('continue', betting, 0);
+  const fold = preselectedAction('fold', betting, 0);
+  assert.deepEqual(check, { kind: 'continue', street: 0, action: 'check', due: 0 });
+  assert.deepEqual(fold, { kind: 'fold', street: 0 });
+  assert.equal(validPreselection(check, betting, 0), check);
+  betting.bet = 10;
+  assert.equal(validPreselection(check, betting, 0), null, 'Una subida anula pasar');
+  assert.equal(validPreselection(fold, betting, 0), fold, 'Retirarse sigue seleccionado');
+  const call = preselectedAction('continue', betting, 0);
+  assert.deepEqual(call, { kind: 'continue', street: 0, action: 'call', due: 10 });
+  betting.bet = 20;
+  assert.equal(validPreselection(call, betting, 0), null, 'Una resubida anula igualar');
+  assert.equal(validPreselection(fold, betting, 1), fold, 'Retirarse sigue seleccionado al cambiar de calle');
+  betting.pending = [1];
+  betting.players[0].committed = 20;
+  assert.equal(validPreselection(fold, betting, 0), fold, 'Se puede seleccionar después de haber actuado');
+  const nextCheck = preselectedAction('continue', betting, 0);
+  assert.deepEqual(nextCheck, { kind: 'continue', street: 0, action: 'check', due: 0 });
+  betting.status = 'preflop-complete';
+  betting.pending = [];
+  assert.equal(validPreselection(nextCheck, betting, 0), nextCheck, 'El tic permanece durante la transición');
+  betting.status = 'playing';
+  betting.bet = 0;
+  betting.players[0].committed = 0;
+  betting.pending = [0, 1];
+  assert.equal(validPreselection(nextCheck, betting, 1), nextCheck, 'Pasar sigue disponible en la calle siguiente');
+  betting.bet = 10;
+  assert.equal(validPreselection(nextCheck, betting, 1), null, 'Una apuesta en la calle siguiente anula pasar');
+  betting.pending = [0, 1];
+  betting.players[0].stack = 0;
+  assert.equal(preselectedAction('fold', betting, 0), null, 'Un all-in no puede preseleccionar otra acción');
+});
+
+test('En móvil el mensaje dispone de dos líneas bajo las cartas y el bote queda encima', async () => {
+  const [styles, table] = await Promise.all([
+    readFile(new URL('../src/app-shell.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/Table.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(styles, /\.table-stage \.board\{--board-card-height:[^}]*display:grid;grid-template-rows:48px var\(--board-card-height\) 18px minmax\(2\.5em,auto\);top:calc\(var\(--board-card-center,49% \+ 28px\) - 48px - var\(--board-card-half\)\);transform:translateX\(-50%\)/, 'La fila de cartas se ancla a la mesa, no a la altura cambiante del mensaje');
+  assert.match(styles, /\.game-shell\.reveal-active \.table-surface \.table-stage \.board\{top:calc\(var\(--board-card-center,49% \+ 28px\) - 48px - var\(--board-card-half\)\)\}/, 'Revelar las manos conserva el mismo anclaje de cartas');
+  assert.match(styles, /\.table-stage \.pot\{grid-row:1;display:flex;flex-direction:column/);
+  assert.match(styles, /\.table-stage \.community-slots\{grid-row:2\}/);
+  assert.match(styles, /\.table-stage \.board h1\{grid-row:4;[^}]*min-height:2\.5em/);
+  assert.match(styles, /max-height:620px\)[\s\S]*\.table-stage \.board\{--board-card-height:clamp\(58px,19vw,66px\);[^}]*top:calc\(var\(--board-card-center,48% \+ 28px\) - 48px - var\(--board-card-half\)\)/, 'El anclaje también se mantiene en pantallas bajas');
+  assert.match(styles, /max-height:620px\)[\s\S]*\.game-shell\.reveal-active \.table-surface \.table-stage \.board\{top:calc\(var\(--board-card-center,48% \+ 28px\) - 48px - var\(--board-card-half\)\)\}/, 'El resultado tampoco desplaza las cartas en pantallas bajas');
+  assert.match(styles, /\.table-stage:is\(\.seat-count-3,[^}]*\.board h1\{justify-self:center;width:calc\(100% - 2 \* var\(--mobile-seat-width\) - 16px\)/, 'Los mensajes largos ocupan el pasillo central, no los perfiles laterales');
+  assert.match(table, /new ResizeObserver\(place\)/, 'La posición se recalcula si cambian los asientos o la pantalla');
+  assert.match(table, /fitBoardCenter\(ideal,cardHeight,bounds,stageRect\.top\+stageRect\.height\/2\)/);
+});
+
+test('Las cartas caben entre perfiles laterales sin mover mesas que ya tienen espacio', () => {
+  const seats = [{ top: 162, bottom: 216 }, { top: 296, bottom: 350 }];
+  const center = fitBoardCenter(271, 63, seats, 250);
+  assert.ok(center - 31.5 >= 216, 'No tapa el perfil superior');
+  assert.ok(center + 31.5 <= 296, 'No tapa el perfil inferior');
+  assert.equal(fitBoardCenter(256, 63, seats, 250), 256, 'No modifica una posición que ya cabe');
+  assert.equal(fitBoardCenter(250, 63, [seats[0]], 250), 250, 'Heads-up sin fila inferior conserva el diseño');
+});
+
+test('Las dos casillas anticipadas están dentro de sus botones y subir permanece manual', async () => {
+  const [table, styles] = await Promise.all([
+    readFile(new URL('../src/Table.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/app-shell.css', import.meta.url), 'utf8'),
+  ]);
+  assert.equal((table.match(/className="preselect-toggle"/g) || []).length, 2);
+  assert.match(table, /aria-pressed=\{validQueuedAction\?\.kind==='fold'\}/);
+  assert.match(table, /aria-pressed=\{validQueuedAction\?\.kind==='continue'\}/);
+  assert.match(table, /if\(!canAct\|\|!validQueuedAction\|\|busy\.current\)return;[\s\S]*takeAction\(0,validQueuedAction\.kind==='fold'\?'fold':validQueuedAction\.action\)/);
+  assert.match(table, /if\(seat===0\)\{[\s\S]*?setQueuedAction\(null\);\s*\}/, 'Las decisiones de los bots no borran el tic del jugador');
+  assert.match(table, /<button className="action-raise"[\s\S]*?>Subir<\/button>/);
+  assert.match(styles, /\.game-actions \.action-slot>\.preselect-toggle\{position:absolute;z-index:1;left:0;top:0/);
 });
 
 test('Las preferencias tienen valores seguros y conservan elecciones válidas', () => {
@@ -143,34 +240,72 @@ test('Las preferencias tienen valores seguros y conservan elecciones válidas', 
   assert.equal(normalizeVolume(Number.NaN, 50), 50);
 });
 
-test('La vibración usa señales perceptibles y diferentes sin alargar la partida', () => {
-  assert.deepEqual(vibrationPatterns.start, [110, 70, 170]);
-  assert.deepEqual(vibrationPatterns.turn, [180, 90, 180]);
-  assert.deepEqual(vibrationPatterns.eliminated, [300, 90, 190]);
+test('Los eventos hápticos son semánticos y tienen patrones distintos', () => {
+  assert.deepEqual(vibrationPatterns.GAME_START, [110, 70, 170]);
+  assert.deepEqual(vibrationPatterns.TURN_START, [180, 90, 180]);
+  assert.deepEqual(vibrationPatterns.ELIMINATED, [300, 90, 190]);
+  for (const event of ['CHECK', 'CALL', 'RAISE', 'ALL_IN', 'WIN', 'TOURNAMENT_WIN', 'TEST']) {
+    assert.ok(vibrationPatterns[event]?.length, `${event} tiene patrón`);
+  }
   assert.ok(Object.values(vibrationPatterns).every(pattern => pattern.reduce((sum, time) => sum + time, 0) < 650));
-  const sent = [];
-  const device = { vibrate(pattern) { sent.push(pattern); return true; } };
-  assert.equal(vibrationAvailable(device), true);
-  assert.equal(playVibration('turn', device), true);
-  assert.deepEqual(sent, [[180, 90, 180]]);
-  assert.equal(playVibration('test', { vibrate: () => false }), false, 'No confirma una solicitud rechazada');
-  assert.equal(vibrationAvailable({ vibrate: undefined }), false);
 });
 
-test('La app vibra al empezar, al llegar tu turno y solo por tu propia eliminación', async () => {
+test('El servicio comprueba API, interacción, visibilidad, ajuste y resultado real', () => {
+  const calls = [];
+  const device = { userActivation: { hasBeenActive: true }, vibrate(pattern) { calls.push(pattern); return true; } };
+  const page = { visibilityState: 'visible' };
+  const service = new HapticsService(() => device, () => page);
+  assert.deepEqual(service.emit('TURN_START', true), {
+    apiAvailable: true, pageVisible: true, hasInteracted: true, enabled: true, called: true, returned: true,
+  });
+  assert.deepEqual(calls, [[180, 90, 180]]);
+  assert.equal(service.emit('CHECK', false).called, false);
+  page.visibilityState = 'hidden';
+  assert.equal(service.emit('CALL', true).called, false);
+  page.visibilityState = 'visible';
+  device.userActivation.hasBeenActive = false;
+  assert.equal(service.emit('RAISE', true).called, false);
+  assert.equal(calls.length, 1, 'Ninguna condición fallida llama al motor');
+  device.userActivation.hasBeenActive = true;
+  device.vibrate = () => false;
+  assert.equal(service.emit('TEST', true).returned, false, 'No confunde rechazo con vibración realizada');
+  device.vibrate = () => { throw new Error('bloqueado'); };
+  assert.equal(service.emit('TEST', true).returned, false, 'También informa de excepciones');
+  device.vibrate = undefined;
+  assert.deepEqual(service.emit('TEST', true), {
+    apiAvailable: false, pageVisible: true, hasInteracted: true, enabled: true, called: false, returned: null,
+  });
+});
+
+test('Sin userActivation se acepta únicamente una interacción de confianza registrada', () => {
+  const calls = [];
+  const service = new HapticsService(() => ({ vibrate(pattern) { calls.push(pattern); return true; } }), () => ({ visibilityState: 'visible' }));
+  assert.equal(service.emit('TEST', true).hasInteracted, false);
+  service.noteTrustedInteraction();
+  assert.equal(service.emit('TEST', true).returned, true);
+  assert.equal(calls.length, 1);
+});
+
+test('La app emite eventos del usuario y nunca vibra por decisiones de bots', async () => {
   const [app, table, animation, preferences] = await Promise.all([
     readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/Table.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/EliminationAnimation.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/feedback.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.equal((app.match(/feedback\('start',true\)/g) || []).length, 2, 'Mesa nueva y nuevo torneo');
-  assert.match(table, /if\(canAct&&!wasHumanTurn\.current\)feedback\('turn',true\)/);
-  assert.match(animation, /feedback\('blast', seat === 0\)/);
-  assert.match(preferences, /kind === 'blast' \? 'eliminated'/);
-  assert.match(preferences, /if \(cue\) playVibration\(cue\)/);
+  assert.equal((app.match(/haptic\('GAME_START'\)/g) || []).length, 2, 'Mesa nueva y nuevo torneo');
+  assert.match(table, /if\(canAct&&!wasHumanTurn\.current\)\{feedback\('turn'\);haptic\('TURN_START'\);\}/);
+  assert.match(table, /if\(seat===0\)\{[\s\S]*haptic\('CHECK'\)/);
+  assert.match(table, /haptic\(next\.players\[0\]\.stack===0\?'ALL_IN'/);
+  assert.match(table, /if\(eliminationSeat===0\)haptic\('ELIMINATED'\)/);
+  assert.match(table, /if\(terminalWinner===0\)haptic\('TOURNAMENT_WIN'\)/);
+  assert.match(animation, /feedback\('blast'\)/);
+  assert.doesNotMatch(preferences, /playVibration/, 'No hay un segundo motor de vibración en la interfaz');
   assert.match(preferences, /Probar vibración/);
-  assert.match(preferences, /El navegador rechazó la prueba/);
+  assert.match(preferences, /onClick=\{\(\) => setVibrationReport\(haptic\('TEST'\)\)\}/, 'La pulsación llama directamente al servicio');
+  for (const label of ['API disponible:', 'Página visible:', 'Interacción previa:', 'Resultado de navigator.vibrate():']) {
+    assert.ok(preferences.includes(label), label);
+  }
 });
 
 test('La música se ordena por nombre y no exige canciones instaladas', async () => {
@@ -265,7 +400,7 @@ test('El confeti desaparece al caer y el ganador permanece hasta salir o reinici
   assert.match(source, /<button onClick=\{onRestart\}>Nuevo torneo<\/button>/);
   assert.doesNotMatch(source, /confetti-backdrop|victory-card|TORNEO FINALIZADO/, 'El texto no tiene panel ni fondo extra');
   assert.match(table, /terminalWinner===null\|\|eliminating/, 'Espera las eliminaciones previas');
-  assert.match(table, /feedback\('win',terminalWinner===0\)/, 'Suena para bots y humanos; vibra solo al ganar tú');
+  assert.match(table, /feedback\('win'\);if\(terminalWinner===0\)haptic\('TOURNAMENT_WIN'\)/, 'Suena para bots y humanos; vibra solo al ganar tú');
   assert.match(table, /celebrationCompleted\.current=true;/);
   assert.doesNotMatch(table, /setCelebrating\(false\)/, 'La frase no desaparece tras los cinco segundos');
   assert.doesNotMatch(table, /humanWonTournament/, 'La victoria no se limita al humano');
@@ -362,13 +497,50 @@ test('Cada perfil revela sus propias cartas sin panel común ni navegación', as
   assert.match(table, /const compareHands=revealActiveCards&&activeSeats\.length>=2/);
   assert.match(table, /compareHands&&reveal\?<SeatReveal/);
   assert.match(table, /revealLayouts\[config\.bots\]\[i\]/);
-  assert.match(table, /<section className=\{"table-stage/);
+  assert.match(table, /<section ref=\{stageRef\} className=\{"table-stage/);
   assert.match(table, /<section className=\{"player-dock/);
   assert.match(reveal, /Cartas ampliadas de/);
   assert.match(reveal, /cards\.map\(card/);
   assert.doesNotMatch(reveal, /onSelect|mano siguiente|mano anterior/);
   assert.match(styles, /\.seat-reveal-window\{display:flex/);
   assert.doesNotMatch(styles, /\.table-stage\{display:none\}/);
+});
+
+test('El importe y el estado del resultado están encima de las cartas sin taparlas en móvil', async () => {
+  const [styles, reveal] = await Promise.all([
+    readFile(new URL('../src/app-shell.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/SeatReveal.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(reveal, /payout \? 'COBRA' : allIn \? 'ALL-IN' : 'APUESTA'/);
+  assert.match(styles, /\.game-shell\.reveal-active \.table-surface \.table-stage \.seat-reveal-cards\{order:2;flex:none\}/);
+  assert.match(styles, /\.game-shell\.reveal-active \.table-surface \.table-stage \.seat-reveal-detail\{position:static;order:1;[^}]*flex-direction:column;[^}]*height:25px/);
+  assert.match(styles, /\.seat-reveal-detail\.paid\{border-color:[^}]*background:/);
+  assert.match(styles, /max-height:620px\)[\s\S]*\.seat-reveal-detail\{height:17px;padding:0 1px\}/);
+  assert.doesNotMatch(styles, /\.seat-reveal-card\{padding-bottom:10px\}/);
+});
+
+test('Importes largos conservan el valor completo y el turno ilumina solo al asiento que decide', async () => {
+  const [styles, reveal, table] = await Promise.all([
+    readFile(new URL('../src/app-shell.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/SeatReveal.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/Table.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(reveal, /displayedAmount\.length > 9 \? ' long-amount'/);
+  assert.match(reveal, /<strong>\{displayedAmount\}<\/strong>/);
+  assert.match(styles, /\.seat-reveal-detail\.long-amount strong\{font-size:10px\}/);
+  assert.match(table, /const deciding=frame\.done&&!dealingBoard&&!showingDecision&&betting\.status==='playing'\?betting\.actor:null/);
+  assert.match(table, /deciding===seat\?" deciding"/);
+  assert.match(table, /deciding===0\?" deciding"/);
+  assert.match(styles, /\.bot-seat\.deciding\[data-hand-status=active\]\{border-color:[^}]*radial-gradient/);
+  assert.match(styles, /\.player-dock\.deciding \.player-row\{border-color:[^}]*radial-gradient/);
+  assert.match(styles, /\.player-dock\.deciding \.player-row\{[^}]*outline:1px solid #5cdb9577/);
+  assert.match(styles, /\.player-dock\.deciding \.private-slots\{filter:drop-shadow\(0 0 2px #dbf48c55\)\}/);
+});
+
+test('Al completar una acción propia no reaparece el brillo antiguo de las cartas', async () => {
+  const table = await readFile(new URL('../src/Table.tsx', import.meta.url), 'utf8');
+  assert.match(table, /showingDecision\?\(betting\.last\?\.seat===0\?null:betting\.last\?\.seat\):betting\.actor/);
+  assert.match(table, /deciding=frame\.done&&!dealingBoard&&!showingDecision/);
 });
 
 test('Una victoria por retirada se expresa correctamente para la persona', async () => {

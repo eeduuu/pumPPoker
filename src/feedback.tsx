@@ -10,7 +10,8 @@ import {
   normalizeVolume,
 } from './preferences';
 import type { FeedbackSettings } from './preferences';
-import { playVibration, vibrationAvailable } from './vibration';
+import { haptics } from './vibration';
+import type { HapticEvent, HapticReport } from './vibration';
 
 type BooleanPreference = 'music' | 'effects' | 'vibration';
 type VolumePreference = 'musicVolume' | 'effectsVolume';
@@ -19,8 +20,8 @@ type FeedbackContextValue = {
   settings: FeedbackSettings;
   setPreference: (key: BooleanPreference, enabled: boolean) => void;
   setVolume: (key: VolumePreference, volume: number) => void;
-  feedback: (kind: FeedbackKind, vibrate?: boolean) => void;
-  testVibration: () => boolean;
+  feedback: (kind: FeedbackKind) => void;
+  haptic: (event: HapticEvent) => HapticReport;
 };
 
 const FeedbackContext = createContext<FeedbackContextValue | null>(null);
@@ -41,6 +42,16 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const engine = useCallback(() => {
     if (!engineRef.current) engineRef.current = new GameAudio(musicPlaylist);
     return engineRef.current;
+  }, []);
+
+  useEffect(() => {
+    const recordInteraction = (event: Event) => { if (event.isTrusted) haptics.noteTrustedInteraction(); };
+    document.addEventListener('pointerdown', recordInteraction, true);
+    document.addEventListener('keydown', recordInteraction, true);
+    return () => {
+      document.removeEventListener('pointerdown', recordInteraction, true);
+      document.removeEventListener('keydown', recordInteraction, true);
+    };
   }, []);
 
   useEffect(() => {
@@ -81,7 +92,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     engineRef.current = null;
   }, []);
 
-  const feedback = useCallback((kind: FeedbackKind, vibrate = false) => {
+  const feedback = useCallback((kind: FeedbackKind) => {
     const current = settingsRef.current;
     if (kind !== 'start') {
       const audio = engine();
@@ -91,16 +102,12 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       }
       if (current.effects) audio.playEffect(kind, current.effectsVolume);
     }
-    if (vibrate && current.vibration && !document.hidden) {
-      const cue = kind === 'blast' ? 'eliminated' : kind === 'start' || kind === 'turn' || kind === 'win' ? kind : null;
-      if (cue) playVibration(cue);
-    }
   }, [engine]);
 
-  const testVibration = useCallback(() => settingsRef.current.vibration && playVibration('test'), []);
+  const haptic = useCallback((event: HapticEvent) => haptics.emit(event, settingsRef.current.vibration), []);
 
   const setPreference = useCallback((key: BooleanPreference, enabled: boolean) => {
-    if (key === 'vibration' && !vibrationAvailable()) return;
+    if (key === 'vibration' && !haptics.inspect(settingsRef.current.vibration).apiAvailable) return;
     settingsRef.current = { ...settingsRef.current, [key]: enabled };
     setSettings(current => ({ ...current, [key]: enabled }));
     if (key === 'music') {
@@ -109,7 +116,6 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       if (enabled) audio.unlockMusic();
     }
     if (key === 'effects' && enabled) engine().playEffect('navigate', settingsRef.current.effectsVolume);
-    if (key === 'vibration' && enabled) playVibration('test');
   }, [engine]);
 
   const setVolume = useCallback((key: VolumePreference, volume: number) => {
@@ -119,7 +125,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     if (key === 'musicVolume') engineRef.current?.setMusicVolume(next);
   }, []);
 
-  return <FeedbackContext.Provider value={{ settings, setPreference, setVolume, feedback, testVibration }}>{children}</FeedbackContext.Provider>;
+  return <FeedbackContext.Provider value={{ settings, setPreference, setVolume, feedback, haptic }}>{children}</FeedbackContext.Provider>;
 }
 
 export function useFeedback() {
@@ -129,11 +135,11 @@ export function useFeedback() {
 }
 
 export function AudioPreferences({ onLeave }: { onLeave?: () => void } = {}) {
-  const { settings, setPreference, setVolume, feedback, testVibration } = useFeedback();
+  const { settings, setPreference, setVolume, feedback, haptic } = useFeedback();
   const [open, setOpen] = useState(false);
-  const [vibrationMessage, setVibrationMessage] = useState('');
+  const [vibrationReport, setVibrationReport] = useState<HapticReport | null>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const vibrationSupported = vibrationAvailable();
+  const vibrationSupported = haptics.inspect(settings.vibration).apiAvailable;
 
   useEffect(() => {
     if (!open) return;
@@ -168,12 +174,19 @@ export function AudioPreferences({ onLeave }: { onLeave?: () => void } = {}) {
         <input id={`${key}-volume`} type="range" min="0" max="100" step="1" value={settings[volume]} aria-label={`Volumen de ${label.toLowerCase()}`} onChange={event => setVolume(volume, Number(event.target.value))} onPointerUp={() => { if (key === 'effects') feedback('navigate'); }} onKeyUp={() => { if (key === 'effects') feedback('navigate'); }}/>
       </div>)}
       <div className="audio-preference vibration-preference">
-        <button className="preference-toggle" type="button" role="switch" aria-checked={vibrationSupported && settings.vibration} disabled={!vibrationSupported} onClick={() => setPreference('vibration', !settings.vibration)}>
+        <button className="preference-toggle" type="button" role="switch" aria-checked={vibrationSupported && settings.vibration} disabled={!vibrationSupported} onClick={() => { setVibrationReport(null); setPreference('vibration', !settings.vibration); }}>
           <span className="preference-label"><i aria-hidden="true">⌁</i>Vibración</span>
           {vibrationSupported ? <span className={'preference-switch '+(settings.vibration ? 'on' : '')} aria-hidden="true"><i/></span> : <span className="preference-unavailable">No disponible</span>}
         </button>
-        {vibrationSupported && <button className="vibration-test" type="button" disabled={!settings.vibration} onClick={() => setVibrationMessage(testVibration() ? 'Prueba enviada. ¿La notas?' : 'El navegador rechazó la prueba.')}>Probar vibración</button>}
-        {vibrationMessage && vibrationSupported && settings.vibration && <p className="vibration-result" role="status">{vibrationMessage}</p>}
+        <button className="vibration-test" type="button" onClick={() => setVibrationReport(haptic('TEST'))}>Probar vibración</button>
+        {vibrationReport && <div className="vibration-result" role="status" aria-label="Diagnóstico de vibración">
+          <div>API disponible: {vibrationReport.apiAvailable ? 'sí' : 'no'}</div>
+          <div>Página visible: {vibrationReport.pageVisible ? 'sí' : 'no'}</div>
+          <div>Interacción previa: {vibrationReport.hasInteracted ? 'sí' : 'no'}</div>
+          <div>Vibración activada: {vibrationReport.enabled ? 'sí' : 'no'}</div>
+          <div>Resultado de navigator.vibrate(): {vibrationReport.called ? String(vibrationReport.returned) : 'no se llamó'}</div>
+          {vibrationReport.returned === true && <small>El navegador aceptó la solicitud; esto no confirma que el motor haya vibrado.</small>}
+        </div>}
       </div>
       {onLeave && <button className="audio-settings-leave" type="button" onClick={() => { setOpen(false); onLeave(); }}>← Abandonar mesa</button>}
     </div>}

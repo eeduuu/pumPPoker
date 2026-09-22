@@ -3,8 +3,8 @@ import { BrandLogo } from './BrandLogo';
 
 export function GameHub({ onTexas, onBack }: { onTexas: () => void; onBack: () => void }) {
   const { feedback } = useFeedback();
-  const enterTexas = () => { feedback('navigate', true); onTexas(); };
-  const returnHome = () => { feedback('navigate', true); onBack(); };
+  const enterTexas = () => { feedback('navigate'); onTexas(); };
+  const returnHome = () => { feedback('navigate'); onBack(); };
   return <main className="shell hub-shell">
     <header><div className="brand"><BrandLogo/></div><div className="header-controls"><button className="games-back" type="button" onClick={returnHome}>← Inicio</button><AudioPreferences/></div></header>
     <section className="game-hub" aria-labelledby="game-hub-title">
