@@ -1,10 +1,10 @@
 import { createDeck, shuffle } from '../poker/deck.ts';
 import type { Card } from '../poker/deck.ts';
 
-export type BlackjackAction = 'hit' | 'stand' | 'double' | 'split' | 'surrender';
+export type BlackjackAction = 'hit' | 'stand' | 'double' | 'split';
 export type BlackjackPhase = 'betting' | 'insurance' | 'playing' | 'result';
-export type HandOutcome = 'win' | 'lose' | 'push' | 'blackjack' | 'bust' | 'surrender';
-export type Hand = { cards: Card[]; bet: number; done: boolean; split: boolean; splitAces: boolean; surrendered: boolean; outcome?: HandOutcome; paid?: number };
+export type HandOutcome = 'win' | 'lose' | 'push' | 'blackjack' | 'bust';
+export type Hand = { cards: Card[]; bet: number; done: boolean; split: boolean; splitAces: boolean; outcome?: HandOutcome; paid?: number };
 export type Seat = { id: string; name: string; bot: boolean; style: 'prudente' | 'atrevido' | null; bankroll: number; hands: Hand[]; insurance: number };
 export type PresentationStep = { seats: Seat[]; dealer: Card[]; revealDealer: boolean; phase: BlackjackPhase; actor: number; handIndex: number; title: string; kind: 'deal' | 'action' | 'turn' | 'reveal' | 'result'; duration: number };
 export type BlackjackGame = { seats: Seat[]; dealer: Card[]; shoe: Card[]; cursor: number; round: number; phase: BlackjackPhase; actor: number; handIndex: number; minBet: number; buyIn: number; message: string; revealDealer: boolean; presentation: PresentationStep[] };
@@ -53,7 +53,7 @@ function freshShoe(game: BlackjackGame) {
   if (game.shoe.length - game.cursor < 90) { game.shoe = createShoe(); game.cursor = 0; }
 }
 
-function emptyHand(bet: number): Hand { return { cards: [], bet, done: false, split: false, splitAces: false, surrendered: false }; }
+function emptyHand(bet: number): Hand { return { cards: [], bet, done: false, split: false, splitAces: false }; }
 
 // From the player's view, first base is on the right. The human seat stays
 // centered visually and at index 0 in state; only the table order changes.
@@ -130,7 +130,6 @@ export function availableActions(game: BlackjackGame): BlackjackAction[] {
   if (hand.cards.length === 2 && !hand.splitAces) {
     if (seat.bankroll >= hand.bet) actions.push('double');
     if (!hand.split && seat.hands.length === 1 && seat.bankroll >= hand.bet && Math.min(hand.cards[0].rank, 10) === Math.min(hand.cards[1].rank, 10)) actions.push('split');
-    if (!hand.split) actions.push('surrender');
   }
   return actions;
 }
@@ -149,7 +148,6 @@ function applyAction(game: BlackjackGame, action: BlackjackAction) {
     hand.cards.push(draw(game));
     hand.done = true;
   }
-  if (action === 'surrender') { hand.surrendered = true; hand.done = true; }
   if (action === 'split') {
     seat.bankroll -= hand.bet;
     const second = emptyHand(hand.bet);
@@ -190,7 +188,7 @@ function advance(game: BlackjackGame) {
       capture(game, `Turno de ${seat.name}`, 'turn', 440);
       const decision = botAction(hand, game.dealer[0], seat.bankroll, seat.style);
       applyAction(game, decision);
-      capture(game, `${seat.name} ${decision === 'hit' ? 'pide carta' : decision === 'stand' ? 'se planta' : decision === 'double' ? 'dobla' : decision === 'split' ? 'separa' : 'se rinde'}`, decision === 'hit' || decision === 'double' || decision === 'split' ? 'deal' : 'action', 560);
+      capture(game, `${seat.name} ${decision === 'hit' ? 'pide carta' : decision === 'stand' ? 'se planta' : decision === 'double' ? 'dobla' : 'separa'}`, decision === 'hit' || decision === 'double' || decision === 'split' ? 'deal' : 'action', 560);
       if (!hand.done) continue;
     }
     game.handIndex++;
@@ -208,7 +206,7 @@ export function act(previous: BlackjackGame, action: BlackjackAction): Blackjack
   const game = structuredClone(previous);
   game.presentation = [];
   applyAction(game, action);
-  capture(game, action === 'hit' ? 'Pides carta' : action === 'stand' ? 'Te plantas' : action === 'double' ? 'Doblas' : action === 'split' ? 'Separas la mano' : 'Te rindes', action === 'hit' || action === 'double' || action === 'split' ? 'deal' : 'action', 460);
+  capture(game, action === 'hit' ? 'Pides carta' : action === 'stand' ? 'Te plantas' : action === 'double' ? 'Doblas' : 'Separas la mano', action === 'hit' || action === 'double' || action === 'split' ? 'deal' : 'action', 460);
   advance(game);
   return game;
 }
@@ -217,7 +215,7 @@ function settle(game: BlackjackGame) {
   game.revealDealer = true;
   capture(game, 'El crupier descubre su carta', 'reveal', 600);
   const dealerNatural = game.dealer.length === 2 && total(game.dealer).value === 21;
-  const contenders = game.seats.some(seat => seat.hands.some(hand => !hand.surrendered && total(hand.cards).value <= 21 && !isNatural(hand)));
+  const contenders = game.seats.some(seat => seat.hands.some(hand => total(hand.cards).value <= 21 && !isNatural(hand)));
   if (!dealerNatural && contenders) {
     while (total(game.dealer).value < 17) {
       game.dealer.push(draw(game));
@@ -232,8 +230,7 @@ function settle(game: BlackjackGame) {
       const points = total(hand.cards).value;
       let paid = 0;
       let outcome: HandOutcome;
-      if (hand.surrendered) { outcome = 'surrender'; paid = hand.bet / 2; }
-      else if (points > 21) outcome = 'bust';
+      if (points > 21) outcome = 'bust';
       else if (isNatural(hand) && !dealerNatural) { outcome = 'blackjack'; paid = hand.bet * 2.5; }
       else if (dealerNatural && isNatural(hand)) { outcome = 'push'; paid = hand.bet; }
       else if (dealerNatural) outcome = 'lose';
