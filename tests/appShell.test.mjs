@@ -240,14 +240,14 @@ test('Las preferencias tienen valores seguros y conservan elecciones válidas', 
   assert.equal(normalizeVolume(Number.NaN, 50), 50);
 });
 
-test('Los eventos hápticos son semánticos y tienen patrones distintos', () => {
-  assert.deepEqual(vibrationPatterns.GAME_START, [110, 70, 170]);
-  assert.deepEqual(vibrationPatterns.TURN_START, [180, 90, 180]);
-  assert.deepEqual(vibrationPatterns.ELIMINATED, [300, 90, 190]);
+test('Los eventos hápticos son semánticos y cada uno usa un solo pulso', () => {
+  assert.deepEqual(vibrationPatterns.GAME_START, [180]);
+  assert.deepEqual(vibrationPatterns.TURN_START, [270]);
+  assert.deepEqual(vibrationPatterns.ELIMINATED, [390]);
   for (const event of ['CHECK', 'CALL', 'RAISE', 'ALL_IN', 'WIN', 'TOURNAMENT_WIN', 'TEST']) {
     assert.ok(vibrationPatterns[event]?.length, `${event} tiene patrón`);
   }
-  assert.ok(Object.values(vibrationPatterns).every(pattern => pattern.reduce((sum, time) => sum + time, 0) < 650));
+  assert.ok(Object.values(vibrationPatterns).every(pattern => pattern.length === 1 && pattern[0] > 0 && pattern[0] < 650));
 });
 
 test('El servicio comprueba API, interacción, visibilidad, ajuste y resultado real', () => {
@@ -258,7 +258,7 @@ test('El servicio comprueba API, interacción, visibilidad, ajuste y resultado r
   assert.deepEqual(service.emit('TURN_START', true), {
     apiAvailable: true, pageVisible: true, hasInteracted: true, enabled: true, called: true, returned: true,
   });
-  assert.deepEqual(calls, [[180, 90, 180]]);
+  assert.deepEqual(calls, [[270]]);
   assert.equal(service.emit('CHECK', false).called, false);
   page.visibilityState = 'hidden';
   assert.equal(service.emit('CALL', true).called, false);
@@ -295,10 +295,13 @@ test('La app emite eventos del usuario y nunca vibra por decisiones de bots', as
   ]);
   assert.equal((app.match(/haptic\('GAME_START'\)/g) || []).length, 2, 'Mesa nueva y nuevo torneo');
   assert.match(table, /if\(canAct&&!wasHumanTurn\.current\)\{feedback\('turn'\);haptic\('TURN_START'\);\}/);
-  assert.match(table, /if\(seat===0\)\{[\s\S]*haptic\('CHECK'\)/);
-  assert.match(table, /haptic\(next\.players\[0\]\.stack===0\?'ALL_IN'/);
+  const actionBlock = table.match(/const takeAction=useCallback\([\s\S]*?\},\[betting,feedback\]\);/)?.[0];
+  assert.ok(actionBlock, 'Las acciones siguen gestionándose en la mesa');
+  assert.match(actionBlock, /if\(seat===0\)\{\s*setQueuedAction\(null\);\s*\}/);
+  assert.doesNotMatch(actionBlock, /haptic\(/, 'Pulsar un botón no añade otra vibración');
   assert.match(table, /if\(eliminationSeat===0\)haptic\('ELIMINATED'\)/);
   assert.match(table, /if\(terminalWinner===0\)haptic\('TOURNAMENT_WIN'\)/);
+  assert.match(table, /haptic\('WIN'\)/, 'El aviso por ganar una mano se conserva');
   assert.match(animation, /feedback\('blast'\)/);
   assert.doesNotMatch(preferences, /playVibration/, 'No hay un segundo motor de vibración en la interfaz');
   assert.match(preferences, /Probar vibración/);

@@ -26,6 +26,32 @@ test('Los ases valen 1 u 11 y el crupier se planta también en 17 suave', () => 
   assert.deepEqual(total([{ rank: 14 }, { rank: 9 }, { rank: 5 }]), { value: 15, soft: false });
 });
 
+test('Una mano suave muestra ambas opciones solo hasta que se planta', async () => {
+  const game = startRound(createGame('Tú', 100, 0, rig([14, 'hearts'], [8, 'spades'], [9, 'hearts'], [7, 'clubs'], [5, 'diamonds'])), 10);
+  assert.deepEqual(total(game.seats[0].hands[0].cards), { value: 20, soft: true });
+  assert.equal(game.seats[0].hands[0].done, false);
+  const stood = act(game, 'stand');
+  assert.equal(stood.presentation[0].title, 'Te plantas');
+  assert.equal(stood.presentation[0].seats[0].hands[0].done, true);
+  assert.deepEqual(total(stood.presentation[0].seats[0].hands[0].cards), { value: 20, soft: true });
+  const source = await readFile(new URL('../src/BlackjackSoloHub.tsx', import.meta.url), 'utf8');
+  assert.match(source, /!done && score\.soft && score\.value < 21/);
+  assert.match(source, /scoreLabel\(hand\.cards, hand\.done\)/);
+});
+
+test('Pedir carta continúa el mismo turno y no repite su vibración', async () => {
+  const game = startRound(createGame('Tú', 100, 0, rig([5, 'clubs'], [8, 'spades'], [6, 'diamonds'], [7, 'hearts'], [2, 'clubs'])), 10);
+  const afterHit = act(game, 'hit');
+  assert.equal(afterHit.round, game.round);
+  assert.equal(afterHit.presentation.at(-1).title, 'Tu turno');
+  const source = await readFile(new URL('../src/BlackjackSoloHub.tsx', import.meta.url), 'utf8');
+  assert.match(source, /lastVibratedRound\.current !== game\.round/);
+  assert.match(source, /lastVibratedRound\.current = game\.round;\s*haptic\('TURN_START'\)/);
+  assert.match(source, /lastVibratedRound\.current = 0;/);
+  assert.doesNotMatch(source, /haptic\('(GAME_START|WIN|RAISE)'\)/);
+  assert.match(source, /if \(eliminatingSeat === 'human'\) haptic\('ELIMINATED'\)/);
+});
+
 test('Blackjack natural paga 3:2, incluido medio punto de ficha', () => {
   const game = startRound(createGame('Tú', 100, 0, rig([14, 'spades'], [9, 'clubs'], [13, 'hearts'], [7, 'diamonds'])), 5);
   assert.equal(game.phase, 'result');
