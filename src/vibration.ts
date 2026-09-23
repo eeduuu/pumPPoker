@@ -2,19 +2,19 @@ export type HapticEvent =
   | 'GAME_START' | 'TURN_START' | 'CHECK' | 'CALL' | 'RAISE' | 'ALL_IN'
   | 'WIN' | 'ELIMINATED' | 'TOURNAMENT_WIN' | 'TEST';
 
-// Milliseconds alternate between vibration and pause. Game events, not game modes
-// or bot decisions, determine the pattern.
+// Each event is a single pulse. For former multi-pulse events, the duration is
+// the first vibration plus its following pause, without the second vibration.
 export const vibrationPatterns: Record<HapticEvent, readonly number[]> = {
-  GAME_START: [110, 70, 170],
-  TURN_START: [180, 90, 180],
+  GAME_START: [180],
+  TURN_START: [270],
   CHECK: [70],
   CALL: [110],
-  RAISE: [100, 60, 150],
-  ALL_IN: [180, 75, 230],
-  WIN: [110, 65, 110],
-  ELIMINATED: [300, 90, 190],
-  TOURNAMENT_WIN: [110, 65, 110, 65, 180],
-  TEST: [180, 90, 180],
+  RAISE: [160],
+  ALL_IN: [255],
+  WIN: [175],
+  ELIMINATED: [390],
+  TOURNAMENT_WIN: [175],
+  TEST: [270],
 };
 
 type HapticNavigator = {

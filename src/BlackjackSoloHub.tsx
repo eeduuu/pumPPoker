@@ -11,9 +11,9 @@ import './blackjack.css';
 const suitSymbol: Record<Card['suit'], string> = { clubs: '♣', diamonds: '♦', hearts: '♥', spades: '♠' };
 const rankLabel = (rank: number) => ({ 11: 'J', 12: 'Q', 13: 'K', 14: 'A' } as Record<number, string>)[rank] || String(rank);
 const chips = (value: number) => `${value.toLocaleString('es-ES', { maximumFractionDigits: 1 })} fichas`;
-const scoreLabel = (cards: readonly Card[]) => {
+const scoreLabel = (cards: readonly Card[], done = false) => {
   const score = total(cards);
-  return score.soft && score.value < 21 ? `${score.value - 10}/${score.value}` : String(score.value);
+  return !done && score.soft && score.value < 21 ? `${score.value - 10}/${score.value}` : String(score.value);
 };
 const resultLabel: Record<string, string> = { win: 'Ganó', lose: 'Perdió', push: 'Empate', blackjack: 'Blackjack · 3:2', bust: 'Se pasó' };
 
@@ -27,7 +27,7 @@ function HandView({ hand, compact = false }: { hand: Hand; compact?: boolean }) 
   if (!hand.cards.length) return <div className="bj-hand bj-hand-waiting"><small>Esperando carta</small></div>;
   return <div className={'bj-hand' + (compact ? ' bj-hand-compact' : '')}>
     <div className="bj-cards">{hand.cards.map(card => <PlayingCard card={card} key={card.id}/>)}</div>
-    <div className="bj-hand-meta"><strong>{scoreLabel(hand.cards)}</strong><span>· apuesta {chips(hand.bet)}</span></div>
+    <div className="bj-hand-meta"><strong>{scoreLabel(hand.cards, hand.done)}</strong><span>· apuesta {chips(hand.bet)}</span></div>
     {hand.outcome && <div className={'bj-hand-result bj-' + hand.outcome}>{resultLabel[hand.outcome]}{!compact && hand.paid ? ` · ${hand.outcome === 'push' ? 'recuperas' : 'cobras'} ${chips(hand.paid)}` : ''}</div>}
   </div>;
 }
@@ -63,6 +63,7 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
   const presentationId = useRef(0);
   const lastPlayedStep = useRef('');
+  const lastVibratedRound = useRef(0);
   const eliminationQueue = useRef<string[]>([]);
   const announcedEliminations = useRef(new Set<string>());
   const bombFeedback = useCallback((kind: 'ignite' | 'blast') => feedback(kind), [feedback]);
@@ -113,9 +114,15 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
     const step = playback.steps[playback.index];
     if (step.kind === 'deal') feedback('deal');
     else if (step.kind === 'action' || step.kind === 'reveal') feedback('action');
-    else if (step.kind === 'turn' && step.actor === 0 && step.title === 'Tu turno') { feedback('turn'); haptic('TURN_START'); }
-    else if (step.kind === 'result' && step.seats[0].hands.some(hand => (hand.paid || 0) > hand.bet)) { feedback('win'); haptic('WIN'); }
-  }, [playback, pageVisible, feedback, haptic]);
+    else if (step.kind === 'turn' && step.actor === 0 && step.title === 'Tu turno') {
+      feedback('turn');
+      if (game && lastVibratedRound.current !== game.round) {
+        lastVibratedRound.current = game.round;
+        haptic('TURN_START');
+      }
+    }
+    else if (step.kind === 'result' && step.seats[0].hands.some(hand => (hand.paid || 0) > hand.bet)) feedback('win');
+  }, [playback, pageVisible, game, feedback, haptic]);
 
   useEffect(() => {
     if (playback || game?.phase !== 'result') return;
@@ -140,7 +147,7 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
       const next = createGame(playerName, buyIn, botCount);
       setGame(next); setPlayback(null); setWager(10); setRepeatBet(false); setRepeatNotice(''); setBetOpen(false); setError('');
       setEliminatingSeat(null); setEliminationMarks([]); eliminationQueue.current = []; announcedEliminations.current.clear();
-      haptic('GAME_START');
+      lastVibratedRound.current = 0;
     } catch { setError('No se pudo preparar el zapato de cartas seguro. Inténtalo otra vez.'); }
   };
   const continueToNextHand = () => {
@@ -169,7 +176,6 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
     try {
       const next = act(game, action);
       showTransition(next); setError('');
-      if (action === 'double') haptic('RAISE');
     } catch { setError('Esa acción ya no está disponible.'); }
   };
 

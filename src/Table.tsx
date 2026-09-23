@@ -152,14 +152,12 @@ function HandTable({ config, hand, playerName, onLeave,onRestart,number,onAdvanc
   feedback('action');
   const next=act(betting,seat,action,amount);
   if(seat===0){
-   if(action==='check')haptic('CHECK');
-   else if(action==='call'||action==='raise')haptic(next.players[0].stack===0?'ALL_IN':action==='call'?'CALL':'RAISE');
    setQueuedAction(null);
   }
   setBetting(next);
   setShowingDecision(true);
   setRaiseOpen(false);
- },[betting,feedback,haptic]);
+ },[betting,feedback]);
  useEffect(()=>{
   if(!frame.done||dealingBoard)return;
   const duration=500;
