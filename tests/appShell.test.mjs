@@ -474,7 +474,7 @@ test('Blackjack permite elegir modo y jugar en mesa propia sin activar multijuga
   assert.match(solo, /Apostar y repartir/);
   assert.match(app, /onBlackjack=\{\(\)=>setScreen\('blackjack-mode'\)\}/);
   assert.match(app, /<BlackjackModeHub onSolo=\{\(\)=>setScreen\('blackjack-solo'\)\}/);
-  assert.match(app, /<BlackjackSoloHub playerName=\{displayedName\} onBack=\{\(\)=>setScreen\('blackjack-mode'\)\}/);
+  assert.match(app, /<BlackjackSoloHub playerName=\{displayedName\} onBack=\{\(\)=>setScreen\('blackjack-mode'\)\} onLobby=\{\(\)=>setScreen\('hub'\)\}/);
 });
 
 test('La pantalla inicial separa Casino y Mesa y conserva el recorrido a Texas', async () => {

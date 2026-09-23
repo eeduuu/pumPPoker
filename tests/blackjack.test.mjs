@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { act, addBot, availableActions, chooseInsurance, createGame, createShoe, nextRound, startRound, total } from '../src/blackjack/engine.ts';
 
 function rig(...cards) {
@@ -62,12 +63,10 @@ test('Separar crea dos manos y obliga a pagar la segunda apuesta', () => {
   assert.ok(!availableActions(split).includes('split'));
 });
 
-test('Rendirse recupera media apuesta y se puede seguir con otra mano', () => {
+test('Las acciones disponibles mantienen las cuatro decisiones de la mesa', () => {
   const game = startRound(createGame('Tú', 100, 0, rig([10, 'clubs'], [9, 'spades'], [6, 'hearts'], [7, 'diamonds'])), 10);
-  const result = act(game, 'surrender');
-  assert.equal(result.phase, 'result');
-  assert.equal(result.seats[0].bankroll, 95);
-  assert.equal(nextRound(result).phase, 'betting');
+  assert.deepEqual(availableActions(game), ['hit', 'stand', 'double']);
+  assert.throws(() => act(game, 'surrender'));
 });
 
 test('Los bots usan el mismo zapato y cada carta entregada conserva un identificador único', () => {
@@ -150,4 +149,31 @@ test('Con un bot, ese asiento recibe y juega antes que el usuario; sin bots empi
   const solo = startRound(createGame('Tú', 100, 0, rig([6, 'clubs'], [9, 'clubs'], [8, 'hearts'], [6, 'hearts'])), 10);
   assert.equal(solo.presentation[0].title, 'Carta para Tú');
   assert.equal(solo.presentation.at(-1).title, 'Tu turno');
+});
+
+test('La apuesta repetida usa el mismo reparto al esperar o pulsar Siguiente mano', async () => {
+  const source = await readFile(new URL('../src/BlackjackSoloHub.tsx', import.meta.url), 'utf8');
+  assert.match(source, /const repeatCurrentBet = useCallback/);
+  assert.match(source, /showTransition\(startRound\(nextRound\(finished\), wager\)\)/);
+  assert.match(source, /window\.setTimeout\(\(\) => repeatCurrentBet\(game\), 1000\)/);
+  assert.match(source, /if \(repeatBet && repeatCurrentBet\(game\)\) return;/);
+  assert.match(source, /onClick=\{continueToNextHand\}>Siguiente mano/);
+});
+
+test('Al quedarse sin fichas se puede repetir la misma mesa o volver al lobby real', async () => {
+  const [solo, app] = await Promise.all([
+    readFile(new URL('../src/BlackjackSoloHub.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(solo, /const next = createGame\(playerName, buyIn, botCount\)/);
+  assert.match(solo, /onClick=\{createTable\}>Repetir mesa/);
+  assert.match(solo, /onClick=\{leaveToLobby\}>Volver al lobby/);
+  assert.match(app, /onLobby=\{\(\)=>setScreen\('hub'\)\}/);
+});
+
+test('El logo conserva la imagen de marca y elimina su fondo negro', async () => {
+  const logo = await readFile(new URL('../src/BrandLogo.tsx', import.meta.url), 'utf8');
+  assert.match(logo, /<svg className="brand-logo"/);
+  assert.match(logo, /<feColorMatrix in="SourceGraphic"/);
+  assert.match(logo, /filter="url\(#brand-transparent-background\)"/);
 });
