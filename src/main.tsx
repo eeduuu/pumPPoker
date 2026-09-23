@@ -47,7 +47,7 @@ function App() {
  if(screen==='hub')return <GameHub onTexas={()=>setScreen('texas-mode')} onBlackjack={()=>setScreen('blackjack-mode')} onBack={()=>setScreen('home')}/>;
  if(screen==='texas-mode')return <TexasModeHub onSolo={()=>setScreen('texas')} onBack={()=>setScreen('hub')}/>;
  if(screen==='blackjack-mode')return <BlackjackModeHub onSolo={()=>setScreen('blackjack-solo')} onBack={()=>setScreen('hub')}/>;
- if(screen==='blackjack-solo')return <BlackjackSoloHub playerName={displayedName} onBack={()=>setScreen('blackjack-mode')}/>;
+ if(screen==='blackjack-solo')return <BlackjackSoloHub playerName={displayedName} onBack={()=>setScreen('blackjack-mode')} onLobby={()=>setScreen('hub')}/>;
  if (tableHand) return <Table key={tableSession} config={c} hand={tableHand} playerName={displayedName} onRestart={restartTable} onLeave={() => { opening.current = false; setTableHand(null); setStep(0); }}/ >;
  return <main className="shell"><header><div className="brand"><BrandLogo/></div><div className="header-controls"><button className="games-back" type="button" onClick={()=>{feedback('navigate');setStep(0);setScreen('texas-mode');}}>← Modos</button><AudioPreferences/></div></header>
  <section className="wizard" aria-label="Crear partida"><div className="eyebrow">TEXAS HOLD’EM <span>•</span> {displayedName.toLocaleUpperCase('es')} CONTRA LOS BOTS</div><nav aria-label="Progreso"><ol>{['Partida', 'Jugadores', 'Ritmo', 'Resumen'].map((name, i) => <li key={name} className={i === step ? 'active' : i < step ? 'done' : ''} aria-current={i === step ? 'step' : undefined}><span>{i < step ? '✓' : i + 1}</span><small>{name}</small></li>)}</ol></nav>

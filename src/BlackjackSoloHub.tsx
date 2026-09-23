@@ -11,7 +11,11 @@ import './blackjack.css';
 const suitSymbol: Record<Card['suit'], string> = { clubs: '♣', diamonds: '♦', hearts: '♥', spades: '♠' };
 const rankLabel = (rank: number) => ({ 11: 'J', 12: 'Q', 13: 'K', 14: 'A' } as Record<number, string>)[rank] || String(rank);
 const chips = (value: number) => `${value.toLocaleString('es-ES', { maximumFractionDigits: 1 })} fichas`;
-const resultLabel: Record<string, string> = { win: 'Ganó', lose: 'Perdió', push: 'Empate', blackjack: 'Blackjack · 3:2', bust: 'Se pasó', surrender: 'Rendición' };
+const scoreLabel = (cards: readonly Card[]) => {
+  const score = total(cards);
+  return score.soft && score.value < 21 ? `${score.value - 10}/${score.value}` : String(score.value);
+};
+const resultLabel: Record<string, string> = { win: 'Ganó', lose: 'Perdió', push: 'Empate', blackjack: 'Blackjack · 3:2', bust: 'Se pasó' };
 
 function PlayingCard({ card, hidden = false }: { card?: Card; hidden?: boolean }) {
   return <span className={'bj-card' + (hidden || !card ? ' bj-card-back' : card.suit === 'diamonds' || card.suit === 'hearts' ? ' bj-card-red' : '')} aria-label={hidden || !card ? 'Carta tapada' : `${rankLabel(card.rank)} de ${card.suit}`}>
@@ -23,8 +27,8 @@ function HandView({ hand, compact = false }: { hand: Hand; compact?: boolean }) 
   if (!hand.cards.length) return <div className="bj-hand bj-hand-waiting"><small>Esperando carta</small></div>;
   return <div className={'bj-hand' + (compact ? ' bj-hand-compact' : '')}>
     <div className="bj-cards">{hand.cards.map(card => <PlayingCard card={card} key={card.id}/>)}</div>
-    <div className="bj-hand-meta"><strong>{total(hand.cards).value}</strong><span>· apuesta {chips(hand.bet)}</span></div>
-    {hand.outcome && <div className={'bj-hand-result bj-' + hand.outcome}>{resultLabel[hand.outcome]}{!compact && hand.paid ? ` · ${hand.outcome === 'push' || hand.outcome === 'surrender' ? 'recuperas' : 'cobras'} ${chips(hand.paid)}` : ''}</div>}
+    <div className="bj-hand-meta"><strong>{scoreLabel(hand.cards)}</strong><span>· apuesta {chips(hand.bet)}</span></div>
+    {hand.outcome && <div className={'bj-hand-result bj-' + hand.outcome}>{resultLabel[hand.outcome]}{!compact && hand.paid ? ` · ${hand.outcome === 'push' ? 'recuperas' : 'cobras'} ${chips(hand.paid)}` : ''}</div>}
   </div>;
 }
 
@@ -43,7 +47,7 @@ function ActionIcon({ action }: { action: 'hit' | 'stand' | 'double' | 'split' }
   return <svg className="bj-action-icon" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="5" y="5" width="14" height="18" rx="2.5" stroke="currentColor" strokeWidth="1.8"/><path d="M22 12v9m-4.5-4.5h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>;
 }
 
-export function BlackjackSoloHub({ onBack, playerName }: { onBack: () => void; playerName: string }) {
+export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () => void; onLobby: () => void; playerName: string }) {
   const { feedback, haptic } = useFeedback();
   const [buyIn, setBuyIn] = useState(250);
   const [botCount, setBotCount] = useState(2);
@@ -66,6 +70,23 @@ export function BlackjackSoloHub({ onBack, playerName }: { onBack: () => void; p
     setGame(next);
     setPlayback(next.presentation.length ? { id: ++presentationId.current, steps: next.presentation, index: 0 } : null);
   }, []);
+  const repeatCurrentBet = useCallback((finished: BlackjackGame) => {
+    if (wager > finished.seats[0].bankroll || wager < finished.minBet) {
+      setRepeatBet(false);
+      setRepeatNotice('Saldo insuficiente para repetir.');
+      return false;
+    }
+    try {
+      showTransition(startRound(nextRound(finished), wager));
+      setRepeatNotice('');
+      setError('');
+      return true;
+    } catch {
+      setRepeatBet(false);
+      setRepeatNotice('No se pudo repetir. Continúa manualmente.');
+      return false;
+    }
+  }, [wager, showTransition]);
 
   useEffect(() => {
     const onVisibility = () => setPageVisible(document.visibilityState === 'visible');
@@ -108,30 +129,26 @@ export function BlackjackSoloHub({ onBack, playerName }: { onBack: () => void; p
   useEffect(() => {
     if (!repeatBet || !game || game.phase !== 'result' || playback || eliminatingSeat || !pageVisible) return;
     if (game.seats.some(seat => seat.hands.length && seat.bankroll < game.minBet && !announcedEliminations.current.has(seat.id)) || eliminationQueue.current.length) return;
-    if (wager > game.seats[0].bankroll || wager < game.minBet) {
-      setRepeatBet(false);
-      setRepeatNotice('Saldo insuficiente para repetir.');
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      try {
-        showTransition(startRound(nextRound(game), wager));
-        setRepeatNotice('');
-      } catch {
-        setRepeatBet(false);
-        setRepeatNotice('No se pudo repetir. Continúa manualmente.');
-      }
-    }, 2600);
+    const timer = window.setTimeout(() => repeatCurrentBet(game), 1000);
     return () => window.clearTimeout(timer);
-  }, [repeatBet, game, playback, eliminatingSeat, pageVisible, wager, showTransition]);
+  }, [repeatBet, game, playback, eliminatingSeat, pageVisible, repeatCurrentBet]);
 
   const leave = () => { feedback('navigate'); onBack(); };
-  const newTable = () => { setGame(null); setPlayback(null); setWager(10); setRepeatBet(false); setRepeatNotice(''); setBetOpen(false); setError(''); setEliminatingSeat(null); setEliminationMarks([]); eliminationQueue.current = []; announcedEliminations.current.clear(); };
+  const leaveToLobby = () => { feedback('navigate'); onLobby(); };
   const createTable = () => {
     try {
       const next = createGame(playerName, buyIn, botCount);
-      setGame(next); setWager(10); setRepeatBet(false); setRepeatNotice(''); setError(''); haptic('GAME_START');
+      setGame(next); setPlayback(null); setWager(10); setRepeatBet(false); setRepeatNotice(''); setBetOpen(false); setError('');
+      setEliminatingSeat(null); setEliminationMarks([]); eliminationQueue.current = []; announcedEliminations.current.clear();
+      haptic('GAME_START');
     } catch { setError('No se pudo preparar el zapato de cartas seguro. Inténtalo otra vez.'); }
+  };
+  const continueToNextHand = () => {
+    if (!game || game.phase !== 'result') return;
+    if (repeatBet && repeatCurrentBet(game)) return;
+    setGame(nextRound(game));
+    setWager(Math.min(10, Math.floor(game.seats[0].bankroll / 5) * 5));
+    feedback('navigate');
   };
   const placeBet = () => {
     if (!game) return;
@@ -173,22 +190,22 @@ export function BlackjackSoloHub({ onBack, playerName }: { onBack: () => void; p
   const bots = shown.seats.filter(seat => seat.bot);
   const controls = playback ? [] : availableActions(game);
   const maxBet = Math.floor(game.seats[0].bankroll / 5) * 5;
-  const dealerShown = shown.revealDealer ? total(shown.dealer).value : shown.dealer[0]?.rank === 14 ? 11 : Math.min(shown.dealer[0]?.rank || 0, 10);
+  const dealerShown = shown.revealDealer ? scoreLabel(shown.dealer) : shown.dealer[0]?.rank === 14 ? '11' : String(Math.min(shown.dealer[0]?.rank || 0, 10));
   const bustOut = player.bankroll < shown.minBet && shown.phase === 'result';
   const outcomes = player.hands.map(hand => hand.outcome);
   const resultTitle = outcomes.some(outcome => outcome === 'win' || outcome === 'blackjack') ? 'Ganaste' : outcomes.some(outcome => outcome === 'push') ? 'Empate' : outcomes.length ? 'Perdiste' : 'Mano terminada';
   const statusTitle = currentStep?.kind === 'result' || shown.phase === 'result' ? resultTitle : currentStep?.title || (shown.phase === 'betting' ? 'Prepara tu apuesta' : shown.phase === 'insurance' ? 'Seguro disponible' : shown.actor === 0 ? 'Tu turno' : `Turno de ${shown.seats[shown.actor].name}`);
-  const statusDetail = repeatNotice && shown.phase === 'result' && !currentStep ? repeatNotice : currentStep ? currentStep.kind === 'result' ? game.message : currentStep.kind === 'deal' ? 'Repartiendo cartas' : currentStep.kind === 'turn' ? 'Decidiendo la mano' : 'La mano continúa' : shown.phase === 'betting' ? 'Elige tus fichas para repartir' : shown.phase === 'playing' && shown.actor === 0 ? 'Toma una decisión' : shown.message;
+  const statusDetail = repeatNotice && shown.phase === 'result' && !currentStep ? repeatNotice : currentStep ? currentStep.kind === 'result' ? game.message : '' : shown.phase === 'betting' || shown.phase === 'playing' && shown.actor === 0 ? '' : shown.message;
   return <main className="bj-shell">
     <header className="bj-header"><div className="brand"><BrandLogo/></div><AudioPreferences onLeave={leave}/></header>
     <div className="bj-subhead"><span>BLACKJACK · {game.seats.length} {game.seats.length === 1 ? 'JUGADOR' : 'JUGADORES'} · MANO {game.round + (game.phase === 'betting' ? 1 : 0)}</span><span>MÍN. 5 FICHAS</span></div>
-    <section className={'bj-table' + (bots.length ? '' : ' bj-no-bots') + (player.hands.length > 1 ? ' bj-split' : '')} aria-label="Mesa de blackjack">
+    <section className={'bj-table bj-phase-' + game.phase + (bots.length ? '' : ' bj-no-bots') + (player.hands.length > 1 ? ' bj-split' : '')} aria-label="Mesa de blackjack">
       <div className="bj-dealer">
         <span className="bj-zone-label">CRUPIER</span>
         <div className="bj-cards">{shown.dealer.length ? shown.dealer.map((card, i) => <PlayingCard key={card.id} card={card} hidden={!shown.revealDealer && i === 1}/>) : <><PlayingCard/><PlayingCard/></>}</div>
         <span className="bj-dealer-total">{shown.dealer.length ? `${dealerShown}${shown.revealDealer ? '' : ' + ?'}` : 'Esperando mano'}</span>
       </div>
-      <div className="bj-message" role="status"><span className="bj-status-dot" aria-hidden="true"/><div><strong>{statusTitle}</strong><small>{statusDetail}</small></div></div>
+      <div className="bj-message" role="status"><span className="bj-status-dot" aria-hidden="true"/><div><strong>{statusTitle}</strong>{statusDetail && <small>{statusDetail}</small>}</div></div>
       <div className="bj-bots">{bots.map(seat => <BotSeat key={seat.id} seat={seat} active={shown.phase === 'playing' && shown.seats[shown.actor]?.id === seat.id} marked={eliminationMarks.includes(seat.id)}/>)}</div>
       <div data-bj-seat="human" className={'bj-player-seat' + (shown.phase === 'playing' && shown.actor === 0 ? ' bj-active' : '') + (bustOut ? ' bj-out' : '')}>
         <div className="bj-player-identity"><span>TU MANO</span><strong>{player.name}{bustOut ? ' · Fuera' : ''}</strong><small>Saldo <b>{chips(player.bankroll)}</b></small></div>
@@ -199,21 +216,18 @@ export function BlackjackSoloHub({ onBack, playerName }: { onBack: () => void; p
     <div className="bj-bottom-panel">
       {error && <p role="alert" className="bj-error">{error}</p>}
       <label className="bj-repeat-option"><input type="checkbox" checked={repeatBet} disabled={bustOut} onChange={event => { setRepeatBet(event.target.checked); setRepeatNotice(''); }}/><span>Repetir apuesta y continuar</span>{repeatBet && <em>ACTIVO</em>}</label>
-      {playback && <div className="bj-presentation-panel" role="status"><span>La mesa está jugando</span><strong>{currentStep?.title}</strong><div className="bj-presentation-track"><i style={{ width: `${((playback.index + 1) / playback.steps.length) * 100}%` }}/></div></div>}
       {!playback && game.phase === 'betting' && <>
-        <div className="bj-bet-summary"><span>Apuesta de esta mano</span><strong>{chips(Math.min(wager, maxBet))}</strong><button type="button" onClick={() => setBetOpen(true)}>Cambiar</button></div>
-        <div className="bj-roster">{bots.length < 2 && <button type="button" onClick={() => setGame(addBot(game))}>+ Añadir bot</button>}{bots.map(seat => <button type="button" key={seat.id} onClick={() => setGame(removeBot(game, seat.id))}>Quitar {seat.name}</button>)}</div>
-        {player.bankroll >= game.minBet ? <button className="bj-primary" type="button" onClick={placeBet}>Apostar y repartir</button> : <div className="bj-end-actions"><button type="button" onClick={leave}>Volver al lobby</button><button type="button" onClick={newTable}>Nueva mesa</button></div>}
+        <div className="bj-bet-summary"><span>Apuesta</span><strong>{chips(Math.min(wager, maxBet))}</strong><button type="button" onClick={() => setBetOpen(true)}>Cambiar</button><details className="bj-roster-menu"><summary>Asientos</summary><div className="bj-roster">{bots.length < 2 && <button type="button" onClick={() => { const next = addBot(game); setGame(next); setBotCount(next.seats.filter(seat => seat.bot).length); }}>+ Añadir bot</button>}{bots.map(seat => <button type="button" key={seat.id} onClick={() => { const next = removeBot(game, seat.id); setGame(next); setBotCount(next.seats.filter(player => player.bot).length); }}>Quitar {seat.name}</button>)}</div></details></div>
+        {player.bankroll >= game.minBet ? <button className="bj-primary" type="button" onClick={placeBet}>Apostar y repartir</button> : <div className="bj-end-actions"><button type="button" onClick={leaveToLobby}>Volver al lobby</button><button type="button" onClick={createTable}>Repetir mesa</button></div>}
       </>}
-      {!playback && game.phase === 'insurance' && <div className="bj-insurance"><strong>El crupier muestra un as</strong><span>Seguro: {chips(player.hands[0].bet / 2)}. Solo paga si el crupier tiene blackjack.</span><div><button type="button" onClick={() => insure(false)}>Sin seguro</button><button type="button" disabled={player.bankroll < player.hands[0].bet / 2} onClick={() => insure(true)}>Tomar seguro</button></div></div>}
+      {!playback && game.phase === 'insurance' && <div className="bj-insurance"><strong>Seguro: {chips(player.hands[0].bet / 2)}</strong><span>Solo paga si el crupier tiene blackjack.</span><div><button type="button" onClick={() => insure(false)}>Sin seguro</button><button type="button" disabled={player.bankroll < player.hands[0].bet / 2} onClick={() => insure(true)}>Tomar seguro</button></div></div>}
       {!playback && game.phase === 'playing' && <div className="bj-actions">
         <button className="bj-hit" type="button" disabled={!controls.includes('hit')} onClick={() => takeAction('hit')}><ActionIcon action="hit"/>Pedir</button>
         <button className="bj-stand" type="button" disabled={!controls.includes('stand')} onClick={() => takeAction('stand')}><ActionIcon action="stand"/>Plantarse</button>
         <button className="bj-double" type="button" disabled={!controls.includes('double')} onClick={() => takeAction('double')}><ActionIcon action="double"/>Doblar</button>
         <button className="bj-split" type="button" disabled={!controls.includes('split')} onClick={() => takeAction('split')}><ActionIcon action="split"/>Separar</button>
-        <button className="bj-surrender" type="button" disabled={!controls.includes('surrender')} onClick={() => takeAction('surrender')}>Rendirse</button>
       </div>}
-      {!playback && game.phase === 'result' && !eliminatingSeat && !eliminationQueue.current.length && <div className="bj-result-actions"><div className="bj-result-summary"><span>{bustOut ? 'Te has quedado sin fichas' : resultTitle}</span><strong>Saldo: {chips(player.bankroll)}</strong></div><div>{bustOut ? <><button type="button" onClick={leave}>Volver al lobby</button><button className="bj-primary" type="button" onClick={newTable}>Nueva mesa</button></> : <button className="bj-primary" type="button" onClick={() => { setGame(nextRound(game)); setWager(Math.min(10, Math.floor(player.bankroll / 5) * 5)); feedback('navigate'); }}>Siguiente mano</button>}</div></div>}
+      {!playback && game.phase === 'result' && !eliminatingSeat && !eliminationQueue.current.length && <div className="bj-result-actions"><div>{bustOut ? <><button type="button" onClick={leaveToLobby}>Volver al lobby</button><button className="bj-primary" type="button" onClick={createTable}>Repetir mesa</button></> : <button className="bj-primary" type="button" onClick={continueToNextHand}>Siguiente mano</button>}</div></div>}
     </div>
     {betOpen && game.phase === 'betting' && <div className="bj-sheet-backdrop" role="presentation" onClick={() => setBetOpen(false)}><div className="bj-bet-sheet" role="dialog" aria-modal="true" aria-label="Cambiar apuesta" onClick={event => event.stopPropagation()}><div className="bj-sheet-handle"/><div className="bj-sheet-heading"><strong>Apuesta</strong><button type="button" aria-label="Cerrar" onClick={() => setBetOpen(false)}>×</button></div><small>Saldo: {chips(player.bankroll)}</small><strong className="bj-sheet-amount">{chips(Math.min(wager, maxBet))}</strong><input type="range" min="5" max={Math.max(5, maxBet)} step="5" value={Math.min(wager, maxBet)} aria-label="Apuesta en fichas" onChange={event => setWager(Number(event.target.value))}/><div className="bj-chip-choices">{[5, 10, 25, 50].map(amount => <button type="button" key={amount} disabled={amount > maxBet} className={wager === amount ? 'selected' : ''} onClick={() => setWager(amount)}>{amount}</button>)}</div><button className="bj-primary" type="button" onClick={() => setBetOpen(false)}>Confirmar</button></div></div>}
     {eliminatingSeat && <EliminationAnimation key={eliminatingSeat} seat={0} targetSelector={`[data-bj-seat="${eliminatingSeat}"]`} name={game.seats.find(seat => seat.id === eliminatingSeat)?.name || player.name} feedback={bombFeedback} onBlast={() => { setEliminationMarks(previous => [...previous, eliminatingSeat]); if (eliminatingSeat === 'human') haptic('ELIMINATED'); }} onComplete={() => setEliminatingSeat(null)}/>}
