@@ -1,6 +1,12 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {createDeck} from '../src/poker/deck.ts';import {dealInitialHand} from '../src/poker/initialHand.ts';
-import {createPreflop,act,canRaise,raiseOptions,raiseBreakdown} from '../src/poker/preflop.ts';import {formatBB} from '../src/poker/units.ts';
+import {createPreflop,act,canRaise,raiseOptions,raiseBreakdown} from '../src/poker/preflop.ts';import {formatBB,raiseStepAt,raiseStepCount} from '../src/poker/units.ts';
+test('La subida online avanza de BB en BB y reserva el resto solo para all-in',()=>{
+ assert.equal(raiseStepCount(200,386,100),3);
+ assert.deepEqual([0,1,2].map(index=>raiseStepAt(200,386,100,index)),[200,300,386]);
+ assert.equal(raiseStepCount(100,100,50),1);
+ assert.throws(()=>raiseStepAt(200,386,100,3),/Opción/);
+});
 const start=(stacks=[1000,1000,1000,1000])=>createPreflop(dealInitialHand(stacks,25,50,0,createDeck()),50);
 test('El selector separa igualar y subir: mínimo 1 BB desde cualquier asiento',()=>{
  let s=start();

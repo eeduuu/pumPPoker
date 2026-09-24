@@ -11,6 +11,13 @@ const FUSE_PATH = 'M95 30 C89 41 80 39 79 23 C78 5 66 4 55 5 C43 3 39 9 40 20';
 
 type Target = { dx: number; dy: number; origin: number; scale: number };
 
+export function EliminationMark() {
+  return <span className="elimination-mark" aria-hidden="true">
+    <img src={bombBody} alt=""/>
+    <svg viewBox="0 0 64 64" focusable="false"><path d="m26 18 9 11-7 8 10 12m-7-18 8 2 6-7M20 43l8-6"/></svg>
+  </span>;
+}
+
 export function EliminationAnimation({
   seat, name, onBlast, onComplete, feedback, targetSelector,
 }: {

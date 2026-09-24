@@ -1,5 +1,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { ROOM_TTL_MS, cleanName, firstFreeSeat, passwordDigest, publicRoom, publicSnapshot, sameDigest, validateRoomInput } from './room-core.mjs';
+import { beginHand, canBegin, applyPlayerAction, forfeitPlayer, advanceExpiredTurn, publicGame, voteRematch, resolveRematch } from './game.mjs';
+import { randomInt } from '../src/poker/deck.ts';
+import { BOT_PROFILES } from '../src/poker/botProfiles.ts';
 
 const DIRECTORY_ID = 'texas-rooms-v1';
 const ROOM_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
@@ -34,7 +37,7 @@ export class TexasDirectory extends DurableObject {
     const path = new URL(request.url).pathname;
     if (path === '/list' && request.method === 'GET') {
       const rooms = (await this.ctx.storage.get('rooms')) || {};
-      return json(Object.values(rooms).filter(room => room.status === 'waiting' && Date.now() - room.updatedAt < ROOM_TTL_MS)
+      return json(Object.values(rooms).filter(room => ['waiting', 'playing'].includes(room.status) && Date.now() - room.updatedAt < ROOM_TTL_MS)
         .sort((left, right) => right.updatedAt - left.updatedAt));
     }
     if (path === '/create' && request.method === 'POST') {
@@ -45,7 +48,7 @@ export class TexasDirectory extends DurableObject {
         return await this.ctx.blockConcurrencyWhile(async () => {
           const rooms = (await this.ctx.storage.get('rooms')) || {};
           for (const [id, room] of Object.entries(rooms)) {
-            if (room.status !== 'waiting' || Date.now() - room.updatedAt >= ROOM_TTL_MS) delete rooms[id];
+            if (!['waiting', 'playing'].includes(room.status) || Date.now() - room.updatedAt >= ROOM_TTL_MS) delete rooms[id];
           }
           const active = Object.values(rooms);
           if (active.length >= 500) return error('Hay demasiadas mesas activas. Inténtalo más tarde.', 503);
@@ -55,7 +58,7 @@ export class TexasDirectory extends DurableObject {
           const response = await internalFetch(roomStub(this.env, id), '/init', 'POST', { id, code, ...config, playerName });
           if (!response.ok) return response;
           const created = await response.json();
-          rooms[id] = created.room;
+          rooms[id] = publicRoom(created.room);
           await this.ctx.storage.put('rooms', rooms);
           return json(created, 201);
         });
@@ -77,20 +80,29 @@ export class TexasDirectory extends DurableObject {
 export class TexasRoom extends DurableObject {
   async load() { return this.ctx.storage.get('room'); }
 
-  snapshot(room) {
+  snapshot(room, viewerId = null) {
     const online = new Set(this.ctx.getWebSockets().map(socket => socket.deserializeAttachment()?.playerId));
-    return { ...publicSnapshot(room), players: room.players.map(player => ({ id: player.id, name: player.name, seat: player.seat, isBot: false, online: online.has(player.id), connection: online.has(player.id) ? 'connected' : player.connectedOnce ? 'reconnecting' : 'disconnected' })) };
+    return { ...publicSnapshot(room), game: publicGame(room, viewerId), players: room.players.map(player => ({ id: player.id, name: player.name, seat: player.seat, isBot: false, online: online.has(player.id), connection: online.has(player.id) ? 'connected' : player.connectedOnce ? 'reconnecting' : 'disconnected' })) };
   }
 
   broadcast(room) {
-    const message = JSON.stringify({ type: 'room', room: this.snapshot(room) });
     for (const socket of this.ctx.getWebSockets()) {
-      try { socket.send(message); } catch { /* A disconnected socket will be removed by Cloudflare. */ }
+      try { socket.send(JSON.stringify({ type: 'room', room: this.snapshot(room, socket.deserializeAttachment()?.playerId) })); }
+      catch { /* A disconnected socket will be removed by Cloudflare. */ }
+    }
+  }
+
+  closeExcludedPlayers(room) {
+    if (!room.joinLocked || room.status !== 'playing') return;
+    const accepted = new Set(room.players.map(player => player.id));
+    for (const socket of this.ctx.getWebSockets()) {
+      if (!accepted.has(socket.deserializeAttachment()?.playerId)) socket.close(1008, 'Nueva partida sin tu participación');
     }
   }
 
   async publish(room) {
     await this.ctx.storage.put('room', room);
+    this.closeExcludedPlayers(room);
     try {
       const response = await internalFetch(directory(this.env), '/update', 'POST', publicRoom(room));
       if (!response.ok) throw new Error('No se pudo actualizar el listado.');
@@ -98,6 +110,8 @@ export class TexasRoom extends DurableObject {
       // A directory outage must not make an already-persisted join look unsuccessful.
       await this.ctx.storage.setAlarm(Date.now() + 10_000);
     }
+    const nextAlarm = room.rematch?.deadline || room.game?.deadline;
+    if (nextAlarm) await this.ctx.storage.setAlarm(Math.max(Date.now() + 100, nextAlarm));
     this.broadcast(room);
   }
 
@@ -115,12 +129,16 @@ export class TexasRoom extends DurableObject {
         const salt = config.isPrivate ? secret() : '';
         const room = {
           id, code: input.code, name: config.name, maxPlayers: config.maxPlayers, botCount: config.botCount, turnSeconds: config.turnSeconds, isPrivate: config.isPrivate,
+          mode: config.mode, chips: config.chips, small: config.small, big: config.big, minutes: config.minutes,
+          growing: config.growing, breaks: config.breaks, every: config.every, rest: config.rest,
           passwordSalt: salt, passwordHash: config.isPrivate ? await passwordDigest(config.password, salt) : '',
-          hostId: player.id, players: [player], status: 'waiting', updatedAt: Date.now(),
+          hostId: player.id, players: [player], status: 'waiting', tournamentId: 1, updatedAt: Date.now(),
+          botProfiles: Array.from({ length: config.botCount }, () => randomInt(BOT_PROFILES.length)),
         };
+        if (canBegin(room)) beginHand(room);
         await this.ctx.storage.put('room', room);
-        await this.ctx.storage.setAlarm(Date.now() + RECONNECT_MS);
-        return json({ room: this.snapshot(room), playerId: player.id, token: player.token }, 201);
+        await this.ctx.storage.setAlarm(room.game?.deadline || Date.now() + RECONNECT_MS);
+        return json({ room: this.snapshot(room, player.id), playerId: player.id, token: player.token }, 201);
       });
     }
 
@@ -129,7 +147,7 @@ export class TexasRoom extends DurableObject {
         const input = await readBody(request);
         return await this.ctx.blockConcurrencyWhile(async () => {
           const room = await this.load();
-          if (!room || room.status !== 'waiting' || Date.now() - room.updatedAt >= ROOM_TTL_MS) return error('La mesa ya no está disponible.', 404);
+          if (!room || room.joinLocked || !['waiting', 'playing'].includes(room.status) || Date.now() - room.updatedAt >= ROOM_TTL_MS) return error('La mesa ya no admite jugadores nuevos.', 404);
           if (room.isPrivate) {
             const digest = await passwordDigest(typeof input.password === 'string' ? input.password : '', room.passwordSalt);
             if (!sameDigest(digest, room.passwordHash)) return error('Contraseña incorrecta.', 403);
@@ -139,27 +157,53 @@ export class TexasRoom extends DurableObject {
           const player = { id: crypto.randomUUID(), token: secret(), name: cleanName(input.playerName, 'Jugador', 12), seat };
           room.players.push(player);
           room.updatedAt = Date.now();
+          if (!room.game && canBegin(room)) beginHand(room);
           await this.publish(room);
-          return json({ room: this.snapshot(room), playerId: player.id, token: player.token });
+          return json({ room: this.snapshot(room, player.id), playerId: player.id, token: player.token });
         });
       } catch (cause) { return error(cause.message); }
     }
 
     const room = await this.load();
-    if (!room || room.status !== 'waiting') return error('Mesa no disponible.', 404);
+    if (!room || !['waiting', 'playing', 'finished'].includes(room.status)) return error('Mesa no disponible.', 404);
     const token = path === '/socket' ? new URL(request.url).searchParams.get('token') : request.headers.get('Authorization')?.replace(/^Bearer /, '');
     const player = room.players.find(entry => entry.token === token);
     if (!player) return error('Acceso a la mesa no autorizado.', 401);
 
-    if (path === '/snapshot' && request.method === 'GET') return json(this.snapshot(room));
+    if (path === '/snapshot' && request.method === 'GET') return json(this.snapshot(room, player.id));
+    if (path === '/rematch' && request.method === 'POST') {
+      try {
+        return await this.ctx.blockConcurrencyWhile(async () => {
+          const current = await this.load();
+          voteRematch(current, player.id);
+          current.updatedAt = Date.now();
+          await this.publish(current);
+          return json(this.snapshot(current, player.id));
+        });
+      } catch (cause) { return error(cause.message); }
+    }
+    if (path === '/action' && request.method === 'POST') {
+      try {
+        const input = await readBody(request);
+        return await this.ctx.blockConcurrencyWhile(async () => {
+          const current = await this.load();
+          applyPlayerAction(current, player.id, input?.action, input?.amount || 0);
+          current.updatedAt = Date.now();
+          await this.publish(current);
+          return json(this.snapshot(current, player.id));
+        });
+      } catch (cause) { return error(cause.message); }
+    }
     if (path === '/leave' && request.method === 'DELETE') {
       return this.ctx.blockConcurrencyWhile(async () => {
         const current = await this.load();
         const index = current.players.findIndex(entry => entry.id === player.id);
         if (index < 0) return error('Jugador no encontrado.', 404);
+        forfeitPlayer(current, player.seat);
         current.players.splice(index, 1);
         current.hostId = current.players.some(entry => entry.id === current.hostId) ? current.hostId : current.players[0]?.id || null;
-        current.status = current.players.length ? 'waiting' : 'closed';
+        current.status = current.players.length ? current.status === 'finished' ? 'finished' : current.game ? 'playing' : 'waiting' : 'closed';
+        if (!current.players.length) current.game = null;
         current.updatedAt = Date.now();
         for (const socket of this.ctx.getWebSockets()) if (socket.deserializeAttachment()?.playerId === player.id) socket.close(1000, 'Salió de la mesa');
         await this.publish(current);
@@ -172,9 +216,9 @@ export class TexasRoom extends DurableObject {
       this.ctx.acceptWebSocket(server);
       server.serializeAttachment({ playerId: player.id });
       player.connectedOnce = true;
-      await this.ctx.storage.put('room', room);
-      server.send(JSON.stringify({ type: 'room', room: this.snapshot(room) }));
-      this.broadcast(room);
+      if (!room.game && canBegin(room)) beginHand(room);
+      await this.publish(room);
+      server.send(JSON.stringify({ type: 'room', room: this.snapshot(room, player.id) }));
       return new Response(null, { status: 101, webSocket: client });
     }
     return error('Ruta no encontrada.', 404);
@@ -201,9 +245,9 @@ export class TexasRoom extends DurableObject {
   async webSocketClose(socket) {
     socket.close(1000, 'Conexión cerrada');
     const room = await this.load();
-    if (room?.status === 'waiting') {
+    if (room && room.status !== 'closed') {
       this.broadcast(room);
-      await this.ctx.storage.setAlarm(Date.now() + RECONNECT_MS);
+      await this.ctx.storage.setAlarm(room.rematch?.deadline || room.game?.deadline || Date.now() + RECONNECT_MS);
     }
   }
 
@@ -212,8 +256,23 @@ export class TexasRoom extends DurableObject {
   async alarm() {
     const room = await this.load();
     if (!room) return;
-    if (room.status !== 'waiting') {
+    if (room.status === 'closed') {
       await internalFetch(directory(this.env), '/update', 'POST', publicRoom(room));
+      return;
+    }
+    if (room.status === 'finished' && room.rematch?.deadline && Date.now() >= room.rematch.deadline) {
+      resolveRematch(room);
+      room.updatedAt = Date.now();
+      await this.publish(room);
+      return;
+    }
+    if (advanceExpiredTurn(room)) {
+      room.updatedAt = Date.now();
+      await this.publish(room);
+      return;
+    }
+    if (room.rematch?.deadline || room.game?.deadline) {
+      await this.ctx.storage.setAlarm(Math.max(Date.now() + 100, room.rematch?.deadline || room.game.deadline));
       return;
     }
     const online = new Set(this.ctx.getWebSockets().map(socket => socket.deserializeAttachment()?.playerId));
@@ -224,7 +283,7 @@ export class TexasRoom extends DurableObject {
       return;
     }
     room.hostId = room.players.some(player => player.id === room.hostId) ? room.hostId : room.players[0]?.id || null;
-    room.status = room.players.length ? 'waiting' : 'closed';
+    room.status = room.players.length ? room.status === 'finished' ? 'finished' : 'waiting' : 'closed';
     room.updatedAt = Date.now();
     await this.publish(room);
   }
@@ -252,14 +311,14 @@ export default {
       if (url.pathname === '/api/health' && request.method === 'GET') return cors(json({ ok: true, service: 'texas-multiplayer' }));
       if (url.pathname === '/api/rooms' && request.method === 'GET') return cors(await internalFetch(directory(env), '/list'));
       if (url.pathname === '/api/rooms' && request.method === 'POST') return cors(await directory(env).fetch(new Request('https://internal/create', request)));
-      const match = url.pathname.match(/^\/api\/rooms\/([^/]+)\/(join|snapshot|leave|socket)$/);
+      const match = url.pathname.match(/^\/api\/rooms\/([^/]+)\/(join|snapshot|leave|socket|action|rematch)$/);
       if (!match || !ROOM_ID.test(match[1])) return cors(error('Ruta no encontrada.', 404));
       const [, id, action] = match;
       if (action === 'socket') {
         if (request.method !== 'GET' || request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return cors(error('Conexión WebSocket requerida.', 426));
         return roomStub(env, id).fetch(new Request(`https://internal/socket${url.search}`, request));
       }
-      const method = action === 'join' ? 'POST' : action === 'leave' ? 'DELETE' : 'GET';
+      const method = action === 'join' || action === 'action' || action === 'rematch' ? 'POST' : action === 'leave' ? 'DELETE' : 'GET';
       if (request.method !== method) return cors(error('Método no permitido.', 405));
       const response = await roomStub(env, id).fetch(new Request(`https://internal/${action}`, request));
       return cors(response);

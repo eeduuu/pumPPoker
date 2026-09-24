@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 
 export const CELEBRATION_MS = 5000;
 
@@ -30,7 +30,8 @@ const pieces = Array.from({ length: 96 }, (_, index) => {
   };
 });
 
-function VictoryOverlay({ winner, paused, onLeave, onRestart }: { winner: string; paused: boolean; onLeave: () => void; onRestart: () => void }) {
+type VictoryProps = { winner: string; paused: boolean; onLeave: () => void; onRestart: () => void; details?: ReactNode; restartLabel?: string; restartDisabled?: boolean };
+function VictoryOverlay({ winner, paused, onLeave, onRestart, details, restartLabel = 'Nuevo torneo', restartDisabled = false }: VictoryProps) {
   const layer = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const overlay = layer.current;
@@ -65,14 +66,15 @@ function VictoryOverlay({ winner, paused, onLeave, onRestart }: { winner: string
     } as CSSProperties}/>)}
     <div className="victory-message">
       <h2>Ganador: <strong>{winner}</strong></h2>
+      {details}
     </div>
     <div className="victory-actions">
       <button onClick={onLeave}>Volver al lobby</button>
-      <button onClick={onRestart}>Nuevo torneo</button>
+      {restartLabel === 'Nuevo torneo' && !restartDisabled ? <button onClick={onRestart}>Nuevo torneo</button> : <button onClick={onRestart} disabled={restartDisabled}>{restartLabel}</button>}
     </div>
   </div>;
 }
 
-export function Confetti({ active, winner, paused = false, onLeave, onRestart }: { active: boolean; winner: string; paused?: boolean; onLeave: () => void; onRestart: () => void }) {
-  return active ? <VictoryOverlay winner={winner} paused={paused} onLeave={onLeave} onRestart={onRestart}/> : null;
+export function Confetti({ active, winner, paused = false, onLeave, onRestart, details, restartLabel, restartDisabled }: Omit<VictoryProps, 'paused'> & { active: boolean; paused?: boolean }) {
+  return active ? <VictoryOverlay winner={winner} paused={paused} onLeave={onLeave} onRestart={onRestart} details={details} restartLabel={restartLabel} restartDisabled={restartDisabled}/> : null;
 }

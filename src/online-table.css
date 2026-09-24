@@ -1,0 +1,68 @@
+.online-game-shell .online-room-tools{display:flex;align-items:center;justify-content:center;gap:8px;min-height:27px;white-space:nowrap}
+.online-game-shell .online-room-tools .online-room-summary{display:inline-flex;align-items:center;gap:3px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.online-game-shell .online-room-tools .online-self-connection{display:inline-block;flex:none;width:7px;height:7px;border-radius:50%;background:#e7c878}
+.online-game-shell .online-room-tools .online-self-connection.connected{background:#9decaa}
+.online-game-shell .online-room-tools .online-self-connection.disconnected{background:#df8989}
+.online-room-tools button{border:1px solid #587967;border-radius:8px;background:#132a21;color:#dcebd6;padding:4px 8px;font:inherit;cursor:pointer}
+.online-room-tools button:hover{border-color:#9ddbaf}
+.online-room-tools .online-chat-button{display:inline-flex;align-items:center;justify-content:center;gap:3px;min-width:32px;min-height:27px;padding:3px 6px}
+.online-chat-button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.online-chat-button span{font-size:10px;font-weight:800}
+.online-game-shell .bot-seat{overflow:visible}
+.online-game-shell .bot-seat .seat-heading{display:flex;align-items:center;justify-content:center;gap:3px;min-width:0}
+.online-game-shell .bot-seat .seat-heading strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.online-game-shell .bot-seat .seat-roles{display:inline-flex;gap:1px;flex-shrink:0}
+.online-game-shell .bot-seat .seat-foot{display:flex;align-items:center;justify-content:center;min-height:20px;gap:3px}
+.online-game-shell .bot-seat .hidden-cards{position:static;transform:none;display:inline-flex;align-items:center;justify-content:center;gap:1px;letter-spacing:0;font-size:10px}
+.online-game-shell .bot-seat .revealed-card{font-size:11px}
+.online-game-shell .online-turn-timer{position:absolute;top:-12px;right:-5px;z-index:5;min-width:34px;padding:3px 5px;border:1px solid #dbf48c;border-radius:10px;background:#10271f;color:#f1ffbb;font-size:13px;font-weight:850;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 0 8px #b9ec7644}
+.online-game-shell .online-own-timer{display:inline-block;min-width:40px;padding:4px 7px;border:1px solid #dbf48c;border-radius:10px;background:#1c3825;color:#f1ffbb;font-size:15px;font-weight:850;line-height:1;font-variant-numeric:tabular-nums;text-align:center}
+.online-game-shell .online-connection-dot{position:absolute;top:-5px;left:-5px;z-index:5;width:9px;height:9px;border:1px solid #173025;border-radius:50%;background:#9decaa;box-shadow:0 0 0 2px #10291f}
+.online-game-shell .online-connection-dot.reconnecting{background:#f1cf77}
+.online-game-shell .online-connection-dot.disconnected{background:#df8989}
+.online-game-shell .multiplayer-chat{background:#10251fc9;backdrop-filter:blur(3px)}
+.online-game-shell .multiplayer-chat header .online-chat-turn{margin-left:auto;margin-right:12px;color:#e7f8b2;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.online-game-shell .seat-heading .seat-reveal-equity{font-size:12px}
+.online-game-shell .player-dock .human-equity{font-size:12px;padding:2px 5px}
+.online-game-shell .board h1{overflow-wrap:anywhere}
+.online-game-shell .player-dock .human-roles{display:inline-flex;vertical-align:middle}
+.online-game-shell .player-dock .human-roles .dealer-chip,.online-game-shell .player-dock .human-roles .blind-chip{width:17px;height:17px;font-size:9px;line-height:1}
+.online-game-shell .online-rematch-countdown{max-width:350px;margin:14px auto 0;padding:8px 12px;border:1px solid #79b58b88;border-radius:10px;background:#10271fe0;color:#eaf9dc;font-size:clamp(13px,3.3vw,16px);font-weight:750;line-height:1.35;text-shadow:0 1px 3px #071b12}
+.online-game-shell .victory-actions button:disabled{opacity:.68;cursor:default}
+.online-chat-notice{position:absolute;z-index:6;right:12px;bottom:80px;padding:5px 8px;border:1px solid #68846c;border-radius:8px;background:#10271fee;color:#e6f0dd;font-size:11px}
+@media(max-width:600px){
+ .online-game-shell .table-surface .table-stage{--online-board-card-center:calc(49% + 28px);--online-board-card-half:clamp(35px,11.5vw,45px);--online-seat-half:clamp(27px,4.5dvh,36px)}
+ .online-game-shell.reveal-active .table-surface .table-stage{--online-seat-half:41px}
+ .online-game-shell .online-room-tools{font-size:10px;gap:5px;min-height:25px}
+ .online-room-tools button{max-width:38vw;overflow:hidden;text-overflow:ellipsis;padding:3px 5px;font-size:10px}
+ .online-room-tools .online-chat-button{min-width:31px;min-height:25px;padding:2px 5px}
+ .online-game-shell .table-surface .table-stage .bot-seat .seat-heading strong{font-size:clamp(11px,3vw,13px)}
+ .online-game-shell .table-surface .table-stage .bot-seat .seat-foot{min-height:16px}
+ .online-game-shell .table-surface .table-stage .bot-seat .hidden-cards{font-size:10px}
+ .online-game-shell .table-surface .table-stage .bot-seat .revealed-card{font-size:10px}
+ .online-game-shell .table-surface .table-stage .bot-seat .seat-wager{font-size:9px}
+ .online-game-shell .table-surface .table-stage .board h1{max-width:82%;margin-left:auto;margin-right:auto}
+ .online-game-shell .table-surface .player-dock .you-badge:has(.online-own-timer){display:block;position:absolute;top:3px;right:4px;z-index:4;margin:0}
+ .online-game-shell .table-surface .player-dock .preview-status:empty{visibility:hidden}
+ /* The amount and the two cards use separate rows, including crowded tables. */
+ .online-game-shell.reveal-active .table-surface .table-stage .bot-seat.reveal-showing{height:82px;padding:2px 3px}
+ .online-game-shell.reveal-active .table-surface .table-stage .bot-seat.reveal-showing .seat-heading{min-height:16px}
+ .online-game-shell.reveal-active .table-surface .table-stage .seat-reveal-window{height:58px;gap:3px;padding:1px 2px;overflow:hidden}
+ .online-game-shell.reveal-active .table-surface .table-stage .seat-reveal-detail{height:22px;min-height:22px}
+ .online-game-shell.reveal-active .table-surface .table-stage .seat-reveal-detail strong{font-size:11px;line-height:1}
+ .online-game-shell.reveal-active .table-surface .table-stage .seat-reveal-detail small{font-size:8px;line-height:1}
+ .online-game-shell.reveal-active .table-surface .table-stage .seat-reveal-card{height:29px}
+}
+@media(max-width:600px) and (max-height:620px){
+ .online-game-shell .table-surface .table-stage{--online-board-card-center:calc(48% + 28px);--online-board-card-half:clamp(29px,9.5vw,33px);--online-seat-half:27px}
+ .online-game-shell.reveal-active .table-surface .table-stage{--online-seat-half:35px}
+ .online-game-shell.reveal-active .table-surface .table-stage .bot-seat.reveal-showing{height:70px;padding:1px 2px}
+ .online-game-shell.reveal-active .table-surface .table-stage .bot-seat.reveal-showing .seat-heading{min-height:14px}
+ .online-game-shell.reveal-active .table-surface .table-stage .seat-reveal-window{height:50px;gap:2px}
+ .online-game-shell.reveal-active .table-surface .table-stage .seat-reveal-detail{height:18px;min-height:18px}
+ .online-game-shell.reveal-active .table-surface .table-stage .seat-reveal-card{height:26px}
+ .online-game-shell.reveal-active .table-surface .table-stage:is(.seat-count-7,.seat-count-8) .bot-seat.reveal-showing{height:64px}
+ .online-game-shell.reveal-active .table-surface .table-stage:is(.seat-count-7,.seat-count-8) .seat-reveal-window{height:45px;gap:2px}
+ .online-game-shell.reveal-active .table-surface .table-stage:is(.seat-count-7,.seat-count-8) .seat-reveal-detail{height:17px;min-height:17px}
+ .online-game-shell.reveal-active .table-surface .table-stage:is(.seat-count-7,.seat-count-8) .seat-reveal-card{height:23px}
+}

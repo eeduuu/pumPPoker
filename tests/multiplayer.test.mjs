@@ -4,7 +4,7 @@ import { cleanName, firstFreeSeat, passwordDigest, publicRoom, publicSnapshot, s
 
 test('El servidor limita asientos y valida contraseñas privadas', () => {
   assert.deepEqual(validateRoomInput({ name: '  Mesa   de Ana  ', maxPlayers: 4, isPrivate: true, password: 'secreto1' }), {
-    name: 'Mesa de Ana', maxPlayers: 4, botCount: 0, turnSeconds: 15, isPrivate: true, password: 'secreto1',
+    name: 'Mesa de Ana', maxPlayers: 4, botCount: 0, turnSeconds: 15, mode: 'normal', chips: 10_000, small: 50, big: 100, minutes: 10, growing: false, breaks: false, every: 3, rest: 5, isPrivate: true, password: 'secreto1',
   });
   assert.throws(() => validateRoomInput({ maxPlayers: 1 }), /entre 2 y 9/);
   assert.throws(() => validateRoomInput({ maxPlayers: 10 }), /entre 2 y 9/);
@@ -13,6 +13,8 @@ test('El servidor limita asientos y valida contraseñas privadas', () => {
   assert.throws(() => validateRoomInput({ maxPlayers: 3, turnSeconds: 10 }), /6, 15 o 30/);
   assert.equal(validateRoomInput({ maxPlayers: 3, botCount: 2, turnSeconds: 30 }).botCount, 2);
   assert.equal(validateRoomInput({ maxPlayers: 2, password: 'ignorar' }).password, '');
+  assert.throws(() => validateRoomInput({ maxPlayers: 2, small: 5, big: 85 }), /proporción/);
+  assert.equal(validateRoomInput({ maxPlayers: 2, mode: 'tournament', chips: 5000, small: 25, big: 50, breaks: true, every: 2, rest: 1 }).growing, true);
   assert.equal(cleanName('   ', 'Jugador'), 'Jugador');
 });
 
@@ -24,7 +26,7 @@ test('Los asientos vacíos se reutilizan sin desplazar a los demás', () => {
 test('Las vistas públicas nunca incluyen contraseñas ni tokens', () => {
   const room = { id: 'room', code: 'ABCD123456', name: 'Mesa', maxPlayers: 4, botCount: 2, turnSeconds: 6, isPrivate: true, status: 'waiting', updatedAt: 1,
     hostId: 'a', passwordHash: 'hash', passwordSalt: 'salt', players: [{ id: 'a', name: 'Ana', seat: 0, token: 'secret' }] };
-  assert.deepEqual(publicRoom(room), { id: 'room', code: 'ABCD123456', name: 'Mesa', maxPlayers: 4, botCount: 2, turnSeconds: 6, playerCount: 1, isPrivate: true, status: 'waiting', updatedAt: 1 });
+  assert.deepEqual(publicRoom(room), { id: 'room', code: 'ABCD123456', name: 'Mesa', maxPlayers: 4, botCount: 2, turnSeconds: 6, mode: 'normal', chips: 10_000, small: 50, big: 100, minutes: 10, growing: false, breaks: false, every: 3, rest: 5, playerCount: 1, isPrivate: true, status: 'waiting', joinLocked: false, updatedAt: 1 });
   const snapshot = publicSnapshot(room);
   assert.deepEqual(snapshot.players, [{ id: 'a', name: 'Ana', seat: 0, isBot: false }]);
   assert.equal(JSON.stringify(snapshot).includes('secret'), false);

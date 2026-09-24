@@ -474,6 +474,19 @@ button.install-card:hover{border-style:solid;border-color:var(--accent);backgrou
 .game-shell .table-surface .player-dock.deciding .private-slots{filter:drop-shadow(0 0 2px #dbf48c55)}
 /* Extras de la sala: contenidos en su propio panel, sin tocar la mesa individual. */
 .multiplayer-panel select{display:block;width:100%;min-height:44px;margin-top:7px;padding:0 11px;border:1px solid var(--line);border-radius:7px;background:#14251e;color:#f3f5eb;font-size:16px}
+.multiplayer-panel input[type=number]{display:block;width:100%;min-height:44px;margin-top:7px;padding:0 11px;border:1px solid var(--line);border-radius:7px;background:#14251e;color:#f3f5eb;font-size:16px}
+.multiplayer-create .multiplayer-step{margin:0;color:var(--accent);font-size:11px;font-weight:800;letter-spacing:.08em}
+.multiplayer-create .multiplayer-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.multiplayer-create .multiplayer-step-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.multiplayer-create .multiplayer-step-actions .multiplayer-primary{width:auto;min-width:130px}
+@media(max-width:600px){
+ .multiplayer-hub:has(.multiplayer-create){overflow:visible;max-height:none}
+ .multiplayer-hub:has(.multiplayer-create) .hub-heading h1{margin-bottom:9px}
+ .multiplayer-create{gap:9px;padding:13px}
+ .multiplayer-create input[type=text],.multiplayer-create input[type=password],.multiplayer-create input[type=number],.multiplayer-create select{height:39px;min-height:39px;margin-top:4px}
+ .multiplayer-create .multiplayer-speed{gap:8px;padding:8px}
+ .multiplayer-create .note{font-size:11px;line-height:1.25}
+}
 .multiplayer-speed{display:flex;flex-wrap:wrap;gap:10px;margin:0;padding:12px;border:1px solid var(--line);border-radius:8px}
 .multiplayer-speed legend{padding:0 5px;font-size:13px}
 .multiplayer-speed label{display:flex;align-items:center;gap:6px;white-space:nowrap}

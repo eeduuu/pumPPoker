@@ -480,27 +480,22 @@ test('Blackjack permite elegir modo y jugar en mesa propia sin activar multijuga
   assert.match(app, /<BlackjackSoloHub playerName=\{displayedName\} onBack=\{\(\)=>setScreen\('blackjack-mode'\)\} onLobby=\{\(\)=>setScreen\('hub'\)\}/);
 });
 
-test('La pantalla inicial separa Casino y Mesa y conserva el recorrido a Texas', async () => {
-  const [home, hub, modes, multiplayer, app] = await Promise.all([
-    readFile(new URL('../src/HomeHub.tsx', import.meta.url), 'utf8'),
+test('La pantalla inicial abre directamente Texas y Blackjack, con nombre e instalación', async () => {
+  const [hub, modes, multiplayer, app] = await Promise.all([
     readFile(new URL('../src/GameHub.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/TexasModeHub.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/TexasMultiplayerHub.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.match(app, /useState<'home'\|'hub'\|'texas-mode'\|'texas-multiplayer'\|'texas'\|'blackjack-mode'\|'blackjack-solo'>\(\(\) => new URLSearchParams/);
-  assert.match(app, /<HomeHub onCasino=\{\(\)=>setScreen\('hub'\)\}/);
-  assert.match(app, /<GameHub onTexas=\{\(\)=>setScreen\('texas-mode'\)\} onBlackjack=\{\(\)=>setScreen\('blackjack-mode'\)\} onBack=\{\(\)=>setScreen\('home'\)\}/);
+  assert.match(app, /useState<'hub'\|'texas-mode'\|'texas-multiplayer'\|'texas'\|'blackjack-mode'\|'blackjack-solo'>\(\(\) => new URLSearchParams/);
+  assert.match(app, /\? 'texas-multiplayer' : 'hub'/);
+  assert.doesNotMatch(app, /HomeHub|setScreen\('home'\)/);
+  assert.match(app, /<GameHub onTexas=\{\(\)=>setScreen\('texas-mode'\)\} onBlackjack=\{\(\)=>setScreen\('blackjack-mode'\)\} playerName=\{playerName\} onPlayerNameChange=\{setPlayerName\}/);
   assert.match(app, /<TexasModeHub onSolo=\{\(\)=>setScreen\('texas'\)\} onMultiplayer=\{\(\)=>setScreen\('texas-multiplayer'\)\} onBack=\{\(\)=>setScreen\('hub'\)\}/);
   assert.match(app, /<TexasMultiplayerHub playerName=\{displayedName\} onBack=\{\(\)=>setScreen\('texas-mode'\)\}/);
-  assert.match(home, /<strong>Casino<\/strong>/);
-  assert.match(home, /<small>Juegos de casino<\/small>/);
-  assert.match(home, /id="player-name"/);
-  assert.match(home, /className="game-choice mesa-choice" aria-disabled="true"/);
-  assert.match(home, /<strong>Mesa<\/strong><small>Próximamente<\/small>/);
-  assert.match(home, /<InstallApp\/>/, 'La instalación está en la pantalla inicial');
-  assert.doesNotMatch(hub, /InstallApp/, 'La instalación no se repite dentro de Casino');
-  assert.match(hub, /← Inicio/, 'Desde Casino se vuelve a la pantalla inicial');
+  assert.match(hub, /id="player-name"/);
+  assert.match(hub, /<InstallApp\/>/, 'La instalación permanece en la pantalla inicial');
+  assert.doesNotMatch(hub, /<strong>Casino<\/strong>|className="game-choice mesa-choice"|← Inicio/);
   assert.match(modes, /<strong>Multijugador<\/strong><small>Crear o buscar una mesa<\/small>/);
   assert.match(modes, /onMultiplayer\(\)/);
   assert.match(multiplayer, /<strong>Crear mesa<\/strong>/);
@@ -510,6 +505,14 @@ test('La pantalla inicial separa Casino y Mesa y conserva el recorrido a Texas',
   assert.match(multiplayer, /roomSocketUrl/);
   assert.match(modes, /<strong>1 jugador<\/strong>/);
   assert.match(app, /setTableHand\(null\); setStep\(0\);/, 'Abandonar mesa conserva el regreso a normal o torneo');
+});
+
+test('Pedir carta mantiene las acciones visibles durante el reparto si el turno continúa', async () => {
+  const solo = await readFile(new URL('../src/BlackjackSoloHub.tsx', import.meta.url), 'utf8');
+  assert.match(solo, /setKeepActionsDuringPlayback\(keepActions\)/);
+  assert.match(solo, /showTransition\(next, next\.phase === 'playing' && next\.actor === 0\)/);
+  assert.match(solo, /game\.phase === 'playing' && \(!playback \|\| keepActionsDuringPlayback\)/);
+  assert.match(solo, /const controls = playback \? \[\] : availableActions\(game\)/);
 });
 
 test('El nombre es opcional, limitado, persistente y aparece en la mesa y en la victoria', async () => {

@@ -60,6 +60,7 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
   const [eliminatingSeat, setEliminatingSeat] = useState<string | null>(null);
   const [eliminationMarks, setEliminationMarks] = useState<string[]>([]);
   const [playback, setPlayback] = useState<{ id: number; steps: PresentationStep[]; index: number } | null>(null);
+  const [keepActionsDuringPlayback, setKeepActionsDuringPlayback] = useState(false);
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState === 'visible');
   const presentationId = useRef(0);
   const lastPlayedStep = useRef('');
@@ -67,8 +68,9 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
   const eliminationQueue = useRef<string[]>([]);
   const announcedEliminations = useRef(new Set<string>());
   const bombFeedback = useCallback((kind: 'ignite' | 'blast') => feedback(kind), [feedback]);
-  const showTransition = useCallback((next: BlackjackGame) => {
+  const showTransition = useCallback((next: BlackjackGame, keepActions = false) => {
     setGame(next);
+    setKeepActionsDuringPlayback(keepActions);
     setPlayback(next.presentation.length ? { id: ++presentationId.current, steps: next.presentation, index: 0 } : null);
   }, []);
   const repeatCurrentBet = useCallback((finished: BlackjackGame) => {
@@ -175,7 +177,7 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
     if (!game) return;
     try {
       const next = act(game, action);
-      showTransition(next); setError('');
+      showTransition(next, next.phase === 'playing' && next.actor === 0); setError('');
     } catch { setError('Esa acción ya no está disponible.'); }
   };
 
@@ -227,7 +229,7 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
         {player.bankroll >= game.minBet ? <button className="bj-primary" type="button" onClick={placeBet}>Apostar y repartir</button> : <div className="bj-end-actions"><button type="button" onClick={leaveToLobby}>Volver al lobby</button><button type="button" onClick={createTable}>Repetir mesa</button></div>}
       </>}
       {!playback && game.phase === 'insurance' && <div className="bj-insurance"><strong>Seguro: {chips(player.hands[0].bet / 2)}</strong><span>Solo paga si el crupier tiene blackjack.</span><div><button type="button" onClick={() => insure(false)}>Sin seguro</button><button type="button" disabled={player.bankroll < player.hands[0].bet / 2} onClick={() => insure(true)}>Tomar seguro</button></div></div>}
-      {!playback && game.phase === 'playing' && <div className="bj-actions">
+      {game.phase === 'playing' && (!playback || keepActionsDuringPlayback) && <div className="bj-actions">
         <button className="bj-hit" type="button" disabled={!controls.includes('hit')} onClick={() => takeAction('hit')}><ActionIcon action="hit"/>Pedir</button>
         <button className="bj-stand" type="button" disabled={!controls.includes('stand')} onClick={() => takeAction('stand')}><ActionIcon action="stand"/>Plantarse</button>
         <button className="bj-double" type="button" disabled={!controls.includes('double')} onClick={() => takeAction('double')}><ActionIcon action="double"/>Doblar</button>

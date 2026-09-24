@@ -52,6 +52,14 @@ export function act(s:Betting,seat:number,action:Action,additional=0):Betting {
  next.actedAt[seat]=next.bet;
  return finish(next,seat);
 }
+// A player who leaves a live online hand forfeits without waiting for their turn.
+export function forfeitSeat(s:Betting,seat:number):Betting {
+ if(s.status!=='playing'||s.players[seat]?.folded)return s;
+ if(s.actor===seat)return act(s,seat,'fold');
+ const next:Betting={...s,players:s.players.map(p=>({...p})),pending:s.pending.filter(i=>i!==seat),actedAt:[...s.actedAt],contributed:[...s.contributed]};
+ next.players[seat].folded=true;
+ return finish(next,s.actor===null?seat:(s.actor+s.players.length-1)%s.players.length);
+}
 export function canRaise(s:Betting,seat:number){const p=s.players[seat];return s.status==='playing'&&s.actor===seat&&p.stack>toCall(s,seat)&&(s.actedAt[seat]===null||s.bet-s.actedAt[seat]!>=s.minRaise)&&s.players.some(q=>q.seat!==seat&&!q.folded&&q.stack>0);}
 export function raiseOptions(s:Betting,seat:number,big:number){
  if(!canRaise(s,seat))return [];
