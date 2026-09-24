@@ -26,7 +26,7 @@ test('Los asientos vacíos se reutilizan sin desplazar a los demás', () => {
 test('Las vistas públicas nunca incluyen contraseñas ni tokens', () => {
   const room = { id: 'room', code: 'ABCD123456', name: 'Mesa', maxPlayers: 4, botCount: 2, turnSeconds: 6, isPrivate: true, status: 'waiting', updatedAt: 1,
     hostId: 'a', passwordHash: 'hash', passwordSalt: 'salt', players: [{ id: 'a', name: 'Ana', seat: 0, token: 'secret' }] };
-  assert.deepEqual(publicRoom(room), { id: 'room', code: 'ABCD123456', name: 'Mesa', maxPlayers: 4, botCount: 2, turnSeconds: 6, mode: 'normal', chips: 10_000, small: 50, big: 100, minutes: 10, growing: false, breaks: false, every: 3, rest: 5, playerCount: 1, isPrivate: true, status: 'waiting', joinLocked: false, updatedAt: 1 });
+  assert.deepEqual(publicRoom(room), { id: 'room', code: 'ABCD123456', name: 'Mesa', maxPlayers: 4, botCount: 2, turnSeconds: 6, mode: 'normal', chips: 10_000, small: 50, big: 100, minutes: 10, growing: false, breaks: false, every: 3, rest: 5, playerCount: 1, spectatorCount: 0, isPrivate: true, status: 'waiting', joinLocked: false, registrationClosed: false, updatedAt: 1 });
   const snapshot = publicSnapshot(room);
   assert.deepEqual(snapshot.players, [{ id: 'a', name: 'Ana', seat: 0, isBot: false }]);
   assert.equal(JSON.stringify(snapshot).includes('secret'), false);

@@ -2,20 +2,22 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AudioPreferences, useFeedback } from './feedback';
 import { BrandLogo } from './BrandLogo';
-import { actRoom, createRoom, joinRoom, leaveRoom, listRooms, multiplayerApiUrl, roomSocketUrl, voteRoomRematch } from './multiplayer/client';
+import { actRoom, createRoom, joinRoom, leaveRoom, listRooms, multiplayerApiUrl, rememberRoomSession, resumeRoom, roomSocketUrl, savedRoomSession, spectateRoom, startRoom, voteRoomRematch } from './multiplayer/client';
 import type { RoomListing, RoomSession, RoomSnapshot } from './multiplayer/client';
+import { RoomPeople, peopleCount } from './multiplayer/RoomPeople';
 import { TexasOnlineTable } from './TexasOnlineTable';
 import { validStartingBlinds } from './poker/levels';
+import { validPlayerName } from './playerProfile';
 
 type Choice = 'create' | 'browse' | 'room' | null;
 type ChatMessage = { playerId: string; name: string; text: string; sentAt: number };
 const message = (cause: unknown) => cause instanceof Error ? cause.message : 'Ha ocurrido un error. Vuelve a intentarlo.';
 
 export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void; playerName: string }) {
-  const [choice, setChoice] = useState<Choice>(() => new URLSearchParams(window.location.search).has('texasRoom') ? 'browse' : null);
+  const [choice, setChoice] = useState<Choice>(() => savedRoomSession() ? 'room' : new URLSearchParams(window.location.search).has('texasRoom') ? 'browse' : null);
   const [rooms, setRooms] = useState<RoomListing[]>([]);
-  const [session, setSession] = useState<RoomSession | null>(null);
-  const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
+  const [session, setSession] = useState<RoomSession | null>(savedRoomSession);
+  const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(() => savedRoomSession()?.room || null);
   const [name, setName] = useState('');
   const [maxPlayers, setMaxPlayers] = useState(4);
   const [botCount, setBotCount] = useState(0);
@@ -38,12 +40,29 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
   const [error, setError] = useState('');
   const [connection, setConnection] = useState('');
   const [chatOpen, setChatOpen] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatNotice, setChatNotice] = useState('');
   const [roomSocket, setRoomSocket] = useState<WebSocket | null>(null);
   const [inviteCode, setInviteCode] = useState(() => new URLSearchParams(window.location.search).get('texasRoom')?.toUpperCase() || '');
   const { feedback } = useFeedback();
+
+  useEffect(() => {
+    const saved = savedRoomSession();
+    if (!saved) return;
+    let active = true;
+    resumeRoom(saved).then(room => { if (active) { setSnapshot(room); setChoice('room'); } })
+      .catch(cause => {
+        if (!active) return;
+        if ([401, 404].includes((cause as { status?: number })?.status || 0)) {
+          rememberRoomSession(null); setSession(null); setSnapshot(null); setChoice(null); setError('La mesa anterior ya no está disponible.');
+        } else setError('La conexión está interrumpida. Conservamos tu asiento y volveremos a intentarlo.');
+      });
+    return () => { active = false; };
+  }, []);
+
+  const validName = validPlayerName(playerName);
 
   const select = (next: Choice) => { feedback('navigate'); setError(''); if (next === 'create') setCreateStep(0); setChoice(next); };
   const refresh = async () => {
@@ -88,7 +107,7 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
       socket.onclose = event => {
         if (disposed) return;
         if (event.code === 1008) {
-          setSession(null); setSnapshot(null); setChoice(null); setConnection(''); setChatOpen(false);
+          rememberRoomSession(null); setSession(null); setSnapshot(null); setChoice(null); setConnection(''); setChatOpen(false);
           setError('La nueva partida empezó con quienes aceptaron jugar otra vez.');
           return;
         }
@@ -102,10 +121,11 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
     return () => { disposed = true; if (retry) clearTimeout(retry); socket?.close(); setRoomSocket(null); };
   }, [session]);
 
-  const enter = (next: RoomSession) => { setSession(next); setSnapshot(next.room); setError(''); setChoice('room'); };
+  const enter = (next: RoomSession) => { rememberRoomSession(next); setSession(next); setSnapshot(next.room); setError(''); setChoice('room'); };
   const submitCreate = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
+    if (!validName) { setError('Escribe tu nombre antes de crear una mesa.'); return; }
     if (createStep === 1 && (!validStartingBlinds(small, big) || big > chips)) return;
     if (createStep < 3) { setCreateStep(current => current + 1); return; }
     setBusy(true); setError('');
@@ -113,19 +133,22 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
     catch (cause) { setError(message(cause)); }
     finally { setBusy(false); }
   };
-  const submitJoin = async (room: RoomListing) => {
+  const submitJoin = async (room: RoomListing, spectate: boolean) => {
     if (busy) return;
+    if (!validName) { setError('Escribe tu nombre antes de entrar.'); return; }
     setBusy(true); setError('');
-    try { enter(await joinRoom(room.id, playerName, joinPassword)); }
+    try { enter(await (spectate ? spectateRoom(room.id, playerName, joinPassword) : joinRoom(room.id, playerName, joinPassword))); }
     catch (cause) { setError(message(cause)); }
     finally { setBusy(false); }
   };
   const exitRoom = async () => {
     if (!session || busy) return;
     setBusy(true); setError('');
-    try { await leaveRoom(session); }
-    catch { /* Closing the socket still releases the seat after the reconnect grace period. */ }
-    finally { setSession(null); setSnapshot(null); setChoice(null); setConnection(''); setChatMessages([]); setChatOpen(false); setBusy(false); }
+    try {
+      await leaveRoom(session);
+      rememberRoomSession(null); setSession(null); setSnapshot(null); setChoice(null); setConnection(''); setChatMessages([]); setChatOpen(false); setPeopleOpen(false);
+    } catch (cause) { setError(message(cause)); }
+    finally { setBusy(false); }
   };
 
   const sendChat = (event: FormEvent) => {
@@ -157,6 +180,13 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
     catch (cause) { setError(message(cause)); }
     finally { setBusy(false); }
   };
+  const submitStart = async () => {
+    if (!session || busy) return;
+    setBusy(true); setError('');
+    try { setSnapshot(await startRoom(session)); }
+    catch (cause) { setError(message(cause)); }
+    finally { setBusy(false); }
+  };
 
   if (choice === 'room' && snapshot?.game && session) return <TexasOnlineTable
     session={session} room={snapshot} connection={connection} busy={busy} error={error}
@@ -169,7 +199,7 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
     <section className="game-hub multiplayer-hub" aria-labelledby="texas-multiplayer-title">
       <div className="hub-heading"><p>TEXAS HOLD’EM · MULTIJUGADOR</p><h1 id="texas-multiplayer-title">{choice === 'create' ? 'Crear mesa' : choice === 'browse' ? 'Buscar mesa' : choice === 'room' ? snapshot?.name || 'Tu mesa' : 'Elige cómo jugar'}</h1></div>
       {choice === null && <div className="game-choices">
-        <button className="game-choice" type="button" onClick={() => select('create')}><span className="game-choice-icon" aria-hidden="true">+</span><span><strong>Crear mesa</strong><small>Prepara una mesa para jugar con otras personas</small></span><i aria-hidden="true">→</i></button>
+        <button className="game-choice" type="button" disabled={!validName} onClick={() => select('create')}><span className="game-choice-icon" aria-hidden="true">+</span><span><strong>Crear mesa</strong><small>Prepara una mesa para jugar con otras personas</small></span><i aria-hidden="true">→</i></button>
         <button className="game-choice" type="button" onClick={() => select('browse')}><span className="game-choice-icon" aria-hidden="true">⌕</span><span><strong>Buscar mesa</strong><small>Encuentra una mesa pública o privada</small></span><i aria-hidden="true">→</i></button>
       </div>}
 
@@ -179,7 +209,7 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
           <label>Nombre de la mesa<input type="text" maxLength={24} value={name} placeholder="Mesa de Texas" onChange={event => setName(event.target.value)}/></label>
           <label>Asientos para personas<select value={maxPlayers} onChange={event => setMaxPlayers(Number(event.target.value))}>{Array.from({ length: 8 - botCount }, (_, index) => index + 2).map(count => <option key={count} value={count}>{count} jugadores</option>)}</select></label>
           <label>Bots previstos<select value={botCount} onChange={event => { const count = Number(event.target.value); setBotCount(count); setMaxPlayers(current => Math.min(current, 9 - count)); }}>{Array.from({ length: 8 }, (_, count) => <option key={count} value={count}>{count} {count === 1 ? 'bot' : 'bots'}</option>)}</select></label>
-          <p className="note">Máximo 9 asientos. Con bots, la partida comienza al crearla.</p>
+          <p className="note">Máximo 9 asientos. {mode === 'tournament' ? 'El creador iniciará el torneo cuando esté listo.' : 'Con bots, la partida comienza al crearla.'}</p>
         </>}
         {createStep === 1 && <>
           <label>Modalidad<select value={mode} onChange={event => setMode(event.target.value as 'normal' | 'tournament')}><option value="normal">Partida normal</option><option value="tournament">Torneo</option></select></label>
@@ -209,22 +239,24 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
         {inviteCode && !busy && !error && !rooms.some(room => room.code === inviteCode) && <p className="note">No hay ninguna mesa abierta con ese código.</p>}
         {!busy && !error && rooms.length === 0 && <p className="note">Todavía no hay mesas abiertas.</p>}
         <div className="multiplayer-room-list">{rooms.filter(room => !inviteCode || room.code.includes(inviteCode)).map(room => <div className="multiplayer-room" key={room.id}>
-          <div><strong>{room.name}</strong><small>{room.isPrivate ? '🔒 Privada' : 'Pública'} · {room.playerCount}/{room.maxPlayers} personas · {room.botCount} bots · {room.turnSeconds} s/turno · {room.status === 'playing' ? 'En curso' : 'En espera'}</small></div>
+          <div><strong>{room.name}</strong><small>{room.mode === 'tournament' ? 'Torneo' : 'Partida normal'} · {room.isPrivate ? '🔒 Privada' : 'Pública'} · {room.playerCount}/{room.maxPlayers} personas · {room.botCount} bots · {room.spectatorCount || 0} mirando · {room.status === 'playing' ? 'En curso' : 'En espera'}</small></div>
           {joiningId === room.id && room.isPrivate && <label>Contraseña<input type="password" value={joinPassword} onChange={event => setJoinPassword(event.target.value)}/></label>}
-          <button className="games-back" type="button" disabled={busy || room.joinLocked || room.playerCount >= room.maxPlayers} onClick={() => { if (room.isPrivate && joiningId !== room.id) { setJoiningId(room.id); setJoinPassword(''); return; } void submitJoin(room); }}>{room.joinLocked ? 'En curso' : room.playerCount >= room.maxPlayers ? 'Completa' : joiningId === room.id || !room.isPrivate ? 'Entrar' : 'Contraseña'}</button>
+          <div className="multiplayer-room-actions">{!room.joinLocked && !room.registrationClosed && room.playerCount < room.maxPlayers && <button className="games-back" type="button" disabled={busy || !validName} onClick={() => { if (room.isPrivate && joiningId !== room.id) { setJoiningId(room.id); setJoinPassword(''); return; } void submitJoin(room, false); }}>Entrar a jugar</button>}<button className="games-back" type="button" disabled={busy || !validName || room.spectatorCount >= 24} onClick={() => { if (room.isPrivate && joiningId !== room.id) { setJoiningId(room.id); setJoinPassword(''); return; } void submitJoin(room, true); }}>{room.mode === 'tournament' && room.registrationClosed ? 'Ver torneo' : 'Mirar mesa'}</button></div>
         </div>)}</div>
       </div>}
 
-      {choice === 'room' && snapshot && <div className="multiplayer-panel">
-        <div className="multiplayer-list-heading"><p>{snapshot.isPrivate ? '🔒 Mesa privada' : 'Mesa pública'} · {snapshot.players.length}/{snapshot.maxPlayers} personas</p><small>{connection}</small></div>
+      {choice === 'room' && snapshot && <div className="multiplayer-panel multiplayer-waiting">
+        <div className="multiplayer-list-heading"><p>{snapshot.mode === 'tournament' ? 'Torneo' : 'Partida normal'} · {snapshot.isPrivate ? '🔒 Mesa privada' : 'Mesa pública'} · {session?.role === 'spectator' ? 'Espectador' : `${snapshot.players.length}/${snapshot.maxPlayers} personas`}</p><small>{connection}</small></div>
         <div className="multiplayer-invite"><span>{snapshot.isPrivate ? <>Código para compartir <strong>{snapshot.code}</strong></> : 'Aparece en Buscar mesa'}</span><button className="games-back" type="button" onClick={() => void shareRoom()}>{snapshot.isPrivate ? 'Compartir invitación' : 'Compartir enlace'}</button></div>
         <p className="note">{snapshot.botCount} {snapshot.botCount === 1 ? 'bot previsto' : 'bots previstos'} · {snapshot.turnSeconds} s por turno</p>
+        {snapshot.mode === 'tournament' && !snapshot.registrationClosed && session?.playerId === snapshot.hostId && <button className="multiplayer-primary" type="button" disabled={busy || snapshot.players.length + snapshot.botCount < 2} onClick={() => void submitStart()}>Empezar torneo</button>}
         <ol className="multiplayer-players">{snapshot.players.map(player => <li key={player.id}><span aria-hidden="true">♙</span><strong>{player.name}{player.id === session?.playerId ? ' (tú)' : ''}</strong><small className={'connection-'+player.connection}>{player.connection === 'connected' ? '● Conectado' : player.connection === 'reconnecting' ? '● Reconectando' : '● Desconectado'}</small></li>)}{Array.from({ length: snapshot.botCount }, (_, index) => <li className="multiplayer-bot" key={`bot-${index}`}><span aria-hidden="true">♟</span><strong>Bot {index + 1}</strong><small>Pendiente de partida</small></li>)}</ol>
-        <button className="games-back multiplayer-chat-trigger" type="button" onClick={() => setChatOpen(true)}>Chat de mesa{chatMessages.length ? ` · ${chatMessages.length}` : ''}</button>
-        <p className="note">La partida empezará cuando haya al menos dos participantes entre personas y bots.</p>
+        <div className="multiplayer-lobby-tools"><button className="games-back multiplayer-chat-trigger" type="button" onClick={() => setChatOpen(true)}>Chat de mesa{chatMessages.length ? ` · ${chatMessages.length}` : ''}</button><button className="games-back" type="button" onClick={() => setPeopleOpen(true)}>Personas · {peopleCount(snapshot)}</button></div>
+        <p className="note multiplayer-waiting-tip">{snapshot.mode === 'tournament' ? snapshot.registrationClosed ? 'Torneo iniciado · la inscripción ya está cerrada.' : snapshot.players.length + snapshot.botCount >= 2 ? 'Todo listo. El creador puede empezar el torneo.' : 'Se necesitan al menos 2 participantes (personas o bots).' : 'La partida comienza con al menos 2 participantes (personas o bots).'}</p>
         <button className="games-back multiplayer-leave" type="button" disabled={busy} onClick={() => void exitRoom()}>Salir de la mesa</button>
       </div>}
       {choice === 'room' && chatNotice && !chatOpen && <p className="note" role="status">{chatNotice}</p>}
+      {choice === 'room' && peopleOpen && snapshot && <RoomPeople room={snapshot} onClose={() => setPeopleOpen(false)}/>}
       {choice === 'room' && chatOpen && <div className="multiplayer-chat-backdrop" onClick={() => setChatOpen(false)}><section className="multiplayer-chat" role="dialog" aria-modal="true" aria-label="Chat de la mesa" onClick={event => event.stopPropagation()}><header><strong>Chat de la mesa</strong><button type="button" aria-label="Cerrar chat" onClick={() => setChatOpen(false)}>×</button></header><div className="multiplayer-chat-messages" aria-live="polite">{chatMessages.length === 0 ? <p>Sin mensajes todavía.</p> : chatMessages.map((entry, index) => <p key={`${entry.sentAt}-${index}`}><strong>{entry.name}</strong> {entry.text}</p>)}</div>{chatNotice && <p className="multiplayer-chat-notice" role="status">{chatNotice}</p>}<form onSubmit={sendChat}><input aria-label="Mensaje" type="text" maxLength={200} value={chatText} onChange={event => setChatText(event.target.value)} placeholder="Escribe un mensaje…"/><button type="submit" disabled={!chatText.trim() || roomSocket?.readyState !== WebSocket.OPEN}>Enviar</button></form></section></div>}
       {error && <p className="multiplayer-error" role="alert">{error}</p>}
       {!multiplayerApiUrl && choice !== null && <p className="note">El servidor multijugador todavía no está publicado.</p>}

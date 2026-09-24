@@ -10,6 +10,11 @@ export function displayPlayerName(value: unknown): string {
   return normalizePlayerName(value) || 'Tú';
 }
 
+export function validPlayerName(value: unknown): boolean {
+  const name = normalizePlayerName(value);
+  return name.length >= 2 && !/^bot(?:\s|$)/i.test(name);
+}
+
 export function readPlayerName(): string {
   try { return normalizePlayerName(window.localStorage.getItem(STORAGE_KEY)); }
   catch { return ''; }

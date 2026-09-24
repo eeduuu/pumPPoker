@@ -8,9 +8,11 @@ export type RoomListing = {
   mode: 'normal' | 'tournament'; chips: number; small: number; big: number; minutes: number;
   growing: boolean; breaks: boolean; every: number; rest: number;
   playerCount: number;
+  spectatorCount: number;
   isPrivate: boolean;
   status: 'waiting' | 'playing' | 'finished' | 'closed';
   joinLocked: boolean;
+  registrationClosed: boolean;
   updatedAt: number;
 };
 
@@ -20,6 +22,7 @@ export type RoomSnapshot = RoomListing & {
   winnerName: string | null;
   rematch: { deadline: number; accepted: string[]; insufficient: boolean } | null;
   players: { id: string; name: string; seat: number; isBot: false; online: boolean; connection: 'connected' | 'reconnecting' | 'disconnected' }[];
+  spectators: { id: string; name: string; connection: 'connected' | 'reconnecting' | 'disconnected' }[];
   game: OnlineGame | null;
 };
 
@@ -27,7 +30,17 @@ export type OnlineCard = { id: string; suit: 'clubs' | 'diamonds' | 'hearts' | '
 export type OnlineSeat = { seat: number; id: string; name: string; isBot: boolean; active: boolean; folded: boolean; eliminated: boolean; stack: number; committed: number; contributed: number; cards: OnlineCard[] | null; payout: number };
 export type OnlineGame = { number: number; phase: 'playing' | 'result'; runout: boolean; newlyEliminated: number[]; street: number; board: OnlineCard[]; pot: number; actor: number | null; deadline: number; dealer: number; smallBlind: number; bigBlind: number; smallAmount: number; bigAmount: number; clock: { enabled: boolean; duration: number; elapsed: number; startedAt: number | null; breakLimit: number | null; breakUntil: number | null }; bet: number; minRaise: number; toCall: number; canRaise: boolean; result: { pot: number; payouts: number[]; pots: { amount: number; winners: number[]; refund: boolean }[]; hands: (string | null)[] } | null; seats: OnlineSeat[] };
 
-export type RoomSession = { room: RoomSnapshot; playerId: string; token: string };
+export type RoomSession = { room: RoomSnapshot; playerId: string; token: string; role?: 'player' | 'spectator' };
+const SESSION_KEY = 'pumpoker:texas-room-session';
+export function savedRoomSession(): RoomSession | null {
+  try {
+    const data = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    return data && typeof data.room?.id === 'string' && typeof data.playerId === 'string' && typeof data.token === 'string' ? data : null;
+  } catch { return null; }
+}
+export function rememberRoomSession(session: RoomSession | null) {
+  try { if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session)); else localStorage.removeItem(SESSION_KEY); } catch { /* Storage may be unavailable. */ }
+}
 
 const configured = import.meta.env.VITE_MULTIPLAYER_API_URL?.trim();
 const local = /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
@@ -44,7 +57,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch { throw new Error('No se pudo conectar con el servidor multijugador.'); }
   const result = await response.json() as T & { error?: string };
-  if (!response.ok) throw new Error(result.error || 'No se pudo completar la solicitud.');
+  if (!response.ok) {
+    const failure = new Error(result.error || 'No se pudo completar la solicitud.') as Error & { status: number };
+    failure.status = response.status;
+    throw failure;
+  }
   return result;
 }
 
@@ -53,6 +70,12 @@ export const createRoom = (input: { name: string; maxPlayers: number; botCount: 
   request<RoomSession>('/api/rooms', { method: 'POST', body: JSON.stringify(input) });
 export const joinRoom = (id: string, playerName: string, password: string) =>
   request<RoomSession>(`/api/rooms/${encodeURIComponent(id)}/join`, { method: 'POST', body: JSON.stringify({ playerName, password }) });
+export const spectateRoom = (id: string, playerName: string, password: string) =>
+  request<RoomSession>(`/api/rooms/${encodeURIComponent(id)}/spectate`, { method: 'POST', body: JSON.stringify({ playerName, password }) });
+export const resumeRoom = (session: RoomSession) =>
+  request<RoomSnapshot>(`/api/rooms/${encodeURIComponent(session.room.id)}/snapshot`, { headers: { Authorization: `Bearer ${session.token}` } });
+export const startRoom = (session: RoomSession) =>
+  request<RoomSnapshot>(`/api/rooms/${encodeURIComponent(session.room.id)}/start`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}` }, body: '{}' });
 export const leaveRoom = (session: RoomSession) =>
   request<{ ok: true }>(`/api/rooms/${encodeURIComponent(session.room.id)}/leave`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.token}` } });
 export const actRoom = (session: RoomSession, action: 'fold' | 'check' | 'call' | 'raise', amount = 0) =>

@@ -6,6 +6,17 @@ export function cleanName(value, fallback, max = 24) {
   return (name || fallback).slice(0, max);
 }
 
+export function requiredPlayerName(value) {
+  const name = cleanName(value, '', 12).replace(/[\u0000-\u001f\u007f]/g, '').trim();
+  if (name.length < 2) throw new Error('Escribe un nombre de al menos 2 caracteres para entrar.');
+  if (/^bot(?:\s|$)/i.test(name)) throw new Error('El nombre «Bot» está reservado para los bots.');
+  return name;
+}
+
+export function registrationClosed(room) {
+  return room.mode === 'tournament' && (room.tournamentStartedAt > 0 || !!room.game || room.status !== 'waiting');
+}
+
 export function validateRoomInput(value) {
   if (!value || typeof value !== 'object') throw new Error('Configuración de mesa inválida.');
   const name = cleanName(value.name, 'Mesa de Texas');
@@ -47,9 +58,11 @@ export function publicRoom(room) {
     minutes: room.minutes ?? 10, growing: room.growing ?? false, breaks: room.breaks ?? false,
     every: room.every ?? 3, rest: room.rest ?? 5,
     playerCount: room.players.length,
+    spectatorCount: (room.spectators || []).length,
     isPrivate: room.isPrivate,
     status: room.status,
     joinLocked: room.joinLocked === true,
+    registrationClosed: registrationClosed(room),
     updatedAt: room.updatedAt,
   };
 }

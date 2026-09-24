@@ -30,6 +30,9 @@
 .online-game-shell .online-rematch-countdown{max-width:350px;margin:14px auto 0;padding:8px 12px;border:1px solid #79b58b88;border-radius:10px;background:#10271fe0;color:#eaf9dc;font-size:clamp(13px,3.3vw,16px);font-weight:750;line-height:1.35;text-shadow:0 1px 3px #071b12}
 .online-game-shell .victory-actions button:disabled{opacity:.68;cursor:default}
 .online-chat-notice{position:absolute;z-index:6;right:12px;bottom:80px;padding:5px 8px;border:1px solid #68846c;border-radius:8px;background:#10271fee;color:#e6f0dd;font-size:11px}
+.online-spectator-label{flex:none;align-self:center;margin:0 0 2px;padding:7px 12px;border:1px solid #6c9879;border-radius:9px;background:#122b22e6;color:#e0f0db;font-size:12px;text-align:center}
+.online-game-shell.online-spectator .table-surface .table-stage.seat-count-9 .bot-seat{z-index:2}
+.online-game-shell .online-room-tools .online-people-button{min-width:31px}
 @media(max-width:600px){
  .online-game-shell .table-surface .table-stage{--online-board-card-center:calc(49% + 28px);--online-board-card-half:clamp(35px,11.5vw,45px);--online-seat-half:clamp(27px,4.5dvh,36px)}
  .online-game-shell.reveal-active .table-surface .table-stage{--online-seat-half:41px}

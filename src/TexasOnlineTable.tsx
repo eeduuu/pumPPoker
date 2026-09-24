@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { layouts, mobileLayouts, mobileSeatLeft } from './seats';
 import { BrandLogo } from './BrandLogo';
@@ -10,6 +10,7 @@ import { formatBB, raiseStepAt, raiseStepCount } from './poker/units';
 import { levelTime } from './poker/levels';
 import { revealedEquityPercentages } from './poker/equity';
 import type { OnlineCard, OnlineSeat, RoomSession, RoomSnapshot } from './multiplayer/client';
+import { RoomPeople, peopleCount } from './multiplayer/RoomPeople';
 import './online-table.css';
 
 const symbols = { clubs: '♣', diamonds: '♦', hearts: '♥', spades: '♠' };
@@ -37,8 +38,16 @@ export function TexasOnlineTable({ session, room, connection, busy, error, onAct
   const [raiseOpen, setRaiseOpen] = useState(false);
   const [raiseAmount, setRaiseAmount] = useState(0);
   const [chatOpen, setChatOpen] = useState(false);
+  const [peopleOpen, setPeopleOpen] = useState(false);
   const [queued, setQueued] = useState<QueuedAction | null>(null);
+  const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
+  const suppressTurnVibration = useRef(false);
+  const sendAction = useCallback((action: 'fold' | 'check' | 'call' | 'raise', amount?: number) => {
+    suppressTurnVibration.current = true;
+    onAction(action, amount);
+  }, [onAction]);
   useEffect(() => { const media = window.matchMedia('(max-width:600px)'); const sync = () => setPortrait(media.matches); media.addEventListener('change', sync); return () => media.removeEventListener('change', sync); }, []);
+  useEffect(() => { const sync = () => setVisible(document.visibilityState === 'visible'); document.addEventListener('visibilitychange', sync); return () => document.removeEventListener('visibilitychange', sync); }, []);
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 250); return () => window.clearInterval(timer); }, []);
   useEffect(() => { setRaiseOpen(false); }, [game.number, game.actor, game.street]);
   const resultKey = `${room.tournamentId || 1}:${game.number}`;
@@ -60,9 +69,11 @@ export function TexasOnlineTable({ session, room, connection, busy, error, onAct
   }, [room.status, processedResult, resultKey, eliminationQueue.length]);
   const hasEliminationMark = (seat: OnlineSeat) => seat.eliminated && (!game.newlyEliminated.includes(seat.seat) || blasted.includes(seat.seat));
   const mine = game.seats.find(seat => seat.id === session.playerId);
+  const isSpectator = session.role === 'spectator';
+  const waitingSeat = !isSpectator && !mine;
   const others = game.seats.filter(seat => seat.id !== session.playerId)
     .sort((a, b) => ((a.seat - (mine?.seat || 0) + 9) % 9) - ((b.seat - (mine?.seat || 0) + 9) % 9));
-  const opponentCount = Math.max(1, Math.min(8, others.length));
+  const opponentCount = Math.max(1, Math.min(9, others.length));
   const active = game.phase === 'playing' && mine?.active && !mine.folded && game.actor === mine.seat && connection === 'Conectado';
   const due = game.toCall;
   const canQueue = game.phase === 'playing' && !!mine?.active && !mine.folded && mine.stack > 0 && !active && connection === 'Conectado';
@@ -72,9 +83,31 @@ export function TexasOnlineTable({ session, room, connection, busy, error, onAct
     if (queued && !queuedValid) setQueued(null);
     else if (queued && queuedValid && active && !busy) {
       setQueued(null);
-      onAction(queued.kind === 'fold' ? 'fold' : queued.action!);
+      sendAction(queued.kind === 'fold' ? 'fold' : queued.action!);
     }
-  }, [queued, queuedValid, active, busy, onAction]);
+  }, [queued, queuedValid, active, busy, sendAction]);
+  useEffect(() => {
+    if (!mine || game.actor !== mine.seat) suppressTurnVibration.current = false;
+    if (!mine?.active || game.phase !== 'playing' || connection !== 'Conectado' || !visible || isSpectator) return;
+    const emitOnce = (key: string, event: 'GAME_START' | 'TURN_START') => {
+      try { if (sessionStorage.getItem(key)) return false; } catch { /* In-memory browser sessions can disable storage. */ }
+      const report = haptic(event);
+      if (report.called) { try { sessionStorage.setItem(key, '1'); } catch { /* A blocked store must not block play. */ } }
+      return report.called;
+    };
+    const prefix = `pumpoker:online-haptic:${room.id}:${session.playerId}:${room.tournamentId}`;
+    const turnKey = `${prefix}:turn:${game.number}:${game.street}:${game.deadline}`;
+    if (game.number === 1 && emitOnce(`${prefix}:start`, 'GAME_START') && active) {
+      try { sessionStorage.setItem(turnKey, '1'); } catch { /* Same initial turn is still silent in this render. */ }
+      return;
+    }
+    if (!active) return;
+    if (suppressTurnVibration.current) {
+      try { sessionStorage.setItem(turnKey, '1'); } catch { /* Same action remains suppressed in this render. */ }
+      return;
+    }
+    emitOnce(turnKey, 'TURN_START');
+  }, [active, visible, isSpectator, mine?.seat, mine?.active, game.phase, game.actor, game.number, game.street, game.deadline, connection, room.id, room.tournamentId, session.playerId, haptic]);
   const toggleQueued = (kind: QueuedAction['kind']) => setQueued(current => current?.kind === kind ? null :
     { kind, hand: game.number, street: game.street, ...(kind === 'continue' ? { action: due ? 'call' as const : 'check' as const, due } : {}) });
   const revealed = game.phase === 'result' || game.runout ? game.seats.filter(seat => !seat.folded && seat.cards?.length === 2) : [];
@@ -103,10 +136,10 @@ export function TexasOnlineTable({ session, room, connection, busy, error, onAct
   const openRaise = () => { setRaiseAmount(0); setRaiseOpen(true); };
   const role = (seat: number) => <>{seat === game.dealer && <span className="dealer-chip" title="Dealer">D</span>}{seat === game.smallBlind && <span className="blind-chip" title="Ciega pequeña">CP</span>}{seat === game.bigBlind && <span className="blind-chip" title="Ciega grande">CG</span>}</>;
   const bb = (chips: number) => formatBB(chips, big);
-  return <main className={`game-shell online-game-shell${game.phase === 'result' ? ' reveal-active' : ''}`} data-human-hand-status={mine?.folded ? 'folded' : undefined}>
+  return <main className={`game-shell online-game-shell${game.phase === 'result' ? ' reveal-active' : ''}${isSpectator ? ' online-spectator' : ''}`} data-human-hand-status={mine?.folded ? 'folded' : undefined}>
     <header className="game-header"><div className="brand"><BrandLogo/></div><div className="game-header-actions"><button className="games-back" type="button" onClick={onLeave}>← Salir</button><AudioPreferences onLeave={onLeave}/></div></header>
     <div className="game-meta"><span>{room.mode === 'tournament' ? 'TORNEO' : 'MULTIJUGADOR'} · {game.seats.filter(seat => seat.active).length} JUGADORES · MANO {game.number}</span><span>Ciegas {bb(small)} / 1 BB</span></div>
-    <div className="level-clock online-room-tools"><span className="online-room-summary">{clockLabel} · {room.isPrivate ? '🔒' : 'Pública'} <i className={`online-self-connection${connection === 'Conectado' ? ' connected' : connection.startsWith('Reconectando') || connection.startsWith('Conectando') ? ' reconnecting' : ' disconnected'}`} role="status" aria-label={`Conexión: ${connection}`} title={connection}/></span><button className="online-chat-button" type="button" aria-label={`Abrir chat de mesa${chatMessages.length ? `, ${chatMessages.length} mensajes` : ''}`} onClick={() => setChatOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5 8 8 0 0 1-3.2-.7L4 20l1.7-4.4A7.5 7.5 0 1 1 20 11.5Z"/></svg>{chatMessages.length > 0 && <span>{chatMessages.length}</span>}</button><button type="button" onClick={onShare}>{room.isPrivate ? `Código ${room.code}` : 'Compartir'}</button></div>
+    <div className="level-clock online-room-tools"><span className="online-room-summary">{clockLabel} · {room.isPrivate ? '🔒' : 'Pública'} <i className={`online-self-connection${connection === 'Conectado' ? ' connected' : connection.startsWith('Reconectando') || connection.startsWith('Conectando') ? ' reconnecting' : ' disconnected'}`} role="status" aria-label={`Conexión: ${connection}`} title={connection}/></span><button className="online-chat-button" type="button" aria-label={`Abrir chat de mesa${chatMessages.length ? `, ${chatMessages.length} mensajes` : ''}`} onClick={() => setChatOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5 8 8 0 0 1-3.2-.7L4 20l1.7-4.4A7.5 7.5 0 1 1 20 11.5Z"/></svg>{chatMessages.length > 0 && <span>{chatMessages.length}</span>}</button><button className="online-people-button" type="button" aria-label={`Ver personas de la mesa, ${peopleCount(room)} conectadas`} onClick={() => setPeopleOpen(true)}>♙ {peopleCount(room)}</button><button type="button" onClick={onShare}>{room.isPrivate ? `Código ${room.code}` : 'Compartir'}</button></div>
     <div className="table-surface"><section className={`table-stage seat-count-${opponentCount}${opponentCount >= 5 ? ' dense-table' : ''}${opponentCount >= 7 ? ' crowded-table' : ''}`} aria-label="Mesa de póker multijugador"><div className="felt" aria-hidden="true"/>
       {others.map((seat, index) => {
         const [x, y] = portrait ? mobileLayouts[opponentCount][index] : layouts[opponentCount][index];
@@ -125,15 +158,16 @@ export function TexasOnlineTable({ session, room, connection, busy, error, onAct
       })}
       <div className="board"><h1>{message}</h1><p className="pot">BOTE <strong>{bb(game.pot)}</strong></p><div className="community-slots" aria-label="Cartas comunitarias">{Array.from({ length: 5 }, (_, index) => game.board[index] ? <span key={game.board[index].id} className={`board-card ${game.board[index].suit}`}><span className="board-rank">{rank(game.board[index].rank)}</span><span className="board-suit">{symbols[game.board[index].suit]}</span></span> : <span key={index} aria-hidden="true">·</span>)}</div><span className="not-dealt">{streetNames[game.street]}</span></div>
     </section>
-    <section className={`player-dock${active ? ' human-turn' : ''}${mine?.payout ? ' human-winner' : ''}${mine && hasEliminationMark(mine) ? ' eliminated' : ''}`} aria-label={mine && hasEliminationMark(mine) ? 'Tu asiento, eliminado del torneo' : 'Tu asiento'}><div className="player-row"><div className="private-slots">{mine?.cards?.map(card => cardFace(card, 'playing-card')) || (mine?.eliminated ? null : <><span>?</span><span>?</span></>)}</div><div><strong>{mine?.name || 'Tú'}{mine && hasEliminationMark(mine) ? ' · Fuera' : ''} <span className="seat-roles human-roles">{mine && role(mine.seat)}</span>{mine && !hasEliminationMark(mine) && equity.has(mine.seat) && <output className={`equity-badge human-equity ${equityClass(equity.get(mine.seat)!)}`} aria-label={`Probabilidad de ganar: ${equity.get(mine.seat)}%`}>{equity.get(mine.seat)}%</output>}</strong><p>{bb(mine?.stack ?? 0)} <span>· Apuesta {bb(mine?.committed || 0)}</span></p>{mine?.payout ? <span className="human-state payout-state">COBRAS {bb(mine.payout)}</span> : null}</div><span className="you-badge">{active ? <span className="online-own-timer" aria-label={`Tiempo restante: ${remaining} segundos`}>{remaining}s</span> : 'TU ASIENTO'}</span></div>
+    {isSpectator || waitingSeat ? <div className="online-spectator-label">{isSpectator ? 'Modo espectador · Puedes mirar y usar el chat' : `Te incorporas en la siguiente mano · ${bb(room.chips)} iniciales`}</div> : <section className={`player-dock${active ? ' human-turn' : ''}${mine?.payout ? ' human-winner' : ''}${mine && hasEliminationMark(mine) ? ' eliminated' : ''}`} aria-label={mine && hasEliminationMark(mine) ? 'Tu asiento, eliminado del torneo' : 'Tu asiento'}><div className="player-row"><div className="private-slots">{mine?.cards?.map(card => cardFace(card, 'playing-card')) || (mine?.eliminated ? null : <><span>?</span><span>?</span></>)}</div><div><strong>{mine?.name || 'Tú'}{mine && hasEliminationMark(mine) ? ' · Fuera' : ''} <span className="seat-roles human-roles">{mine && role(mine.seat)}</span>{mine && !hasEliminationMark(mine) && equity.has(mine.seat) && <output className={`equity-badge human-equity ${equityClass(equity.get(mine.seat)!)}`} aria-label={`Probabilidad de ganar: ${equity.get(mine.seat)}%`}>{equity.get(mine.seat)}%</output>}</strong><p>{bb(mine?.stack ?? 0)} <span>· Apuesta {bb(mine?.committed || 0)}</span></p>{mine?.payout ? <span className="human-state payout-state">COBRAS {bb(mine.payout)}</span> : null}</div><span className="you-badge">{active ? <span className="online-own-timer" aria-label={`Tiempo restante: ${remaining} segundos`}>{remaining}s</span> : 'TU ASIENTO'}</span></div>
       {mine && hasEliminationMark(mine) && <EliminationMark/>}
       <p className="preview-status" role="status">{room.status === 'finished' ? 'Torneo terminado' : mine?.eliminated ? 'Modo espectador · El torneo continúa.' : clock?.breakUntil ? `Descanso · ${levelTime(clock.breakUntil - now)}` : game.phase === 'result' ? 'Siguiente mano en unos segundos…' : !mine?.active ? 'Te incorporas en la siguiente mano.' : mine.folded ? 'Esperando la siguiente mano…' : active ? null : connection}</p>
-      {raiseOpen && active ? <div className="raise-panel" role="group" aria-label="Configurar subida"><div className="raise-row"><input aria-label="BB de subida" aria-valuetext={`Subida de ${bb(raiseAt(raiseAmount) - due)}${raiseAt(raiseAmount) === maxRaise ? ', all-in' : ''}`} type="range" min="0" max={raiseOptionCount - 1} step="1" value={raiseAmount} onChange={event => setRaiseAmount(Number(event.target.value))}/><output>+{bb(raiseAt(raiseAmount) - due)}{raiseAt(raiseAmount) === maxRaise ? ' · All-in' : ''}</output></div><p className="raise-cost">{due ? `Igualar ${bb(due)} · ` : ''}Se descuentan {bb(raiseAt(raiseAmount))}</p><div className="raise-controls"><button type="button" onClick={() => setRaiseOpen(false)}>Cancelar</button><button type="button" disabled={busy} onClick={() => onAction('raise', raiseAt(raiseAmount))}>Aceptar</button></div></div> : <div className="game-actions"><div className="action-slot"><button className="action-main action-fold" type="button" disabled={!active || busy} onClick={() => onAction('fold')}>Retirarse</button><button className="preselect-toggle" type="button" disabled={!canQueue} aria-label="Retirarse automáticamente cuando llegue mi turno" aria-pressed={!!queuedValid && queued?.kind === 'fold'} onClick={() => toggleQueued('fold')}><span aria-hidden="true">{queuedValid && queued?.kind === 'fold' ? '✓' : ''}</span></button></div><div className="action-slot"><button className="action-main action-continue" type="button" disabled={!active || busy} onClick={() => onAction(due ? 'call' : 'check')}>{due ? `Igualar ${bb(Math.min(due, mine?.stack || 0))}` : 'Pasar'}</button><button className="preselect-toggle" type="button" disabled={!canQueue} aria-label={`${due ? `Igualar ${bb(Math.min(due, mine?.stack || 0))}` : 'Pasar'} automáticamente cuando llegue mi turno`} aria-pressed={!!queuedValid && queued?.kind === 'continue'} onClick={() => toggleQueued('continue')}><span aria-hidden="true">{queuedValid && queued?.kind === 'continue' ? '✓' : ''}</span></button></div><button className="action-raise" type="button" disabled={!active || busy || !game.canRaise} onClick={openRaise}>Subir</button></div>}
-    </section></div>
+      {raiseOpen && active ? <div className="raise-panel" role="group" aria-label="Configurar subida"><div className="raise-row"><input aria-label="BB de subida" aria-valuetext={`Subida de ${bb(raiseAt(raiseAmount) - due)}${raiseAt(raiseAmount) === maxRaise ? ', all-in' : ''}`} type="range" min="0" max={raiseOptionCount - 1} step="1" value={raiseAmount} onChange={event => setRaiseAmount(Number(event.target.value))}/><output>+{bb(raiseAt(raiseAmount) - due)}{raiseAt(raiseAmount) === maxRaise ? ' · All-in' : ''}</output></div><p className="raise-cost">{due ? `Igualar ${bb(due)} · ` : ''}Se descuentan {bb(raiseAt(raiseAmount))}</p><div className="raise-controls"><button type="button" onClick={() => setRaiseOpen(false)}>Cancelar</button><button type="button" disabled={busy} onClick={() => sendAction('raise', raiseAt(raiseAmount))}>Aceptar</button></div></div> : <div className="game-actions"><div className="action-slot"><button className="action-main action-fold" type="button" disabled={!active || busy} onClick={() => sendAction('fold')}>Retirarse</button><button className="preselect-toggle" type="button" disabled={!canQueue} aria-label="Retirarse automáticamente cuando llegue mi turno" aria-pressed={!!queuedValid && queued?.kind === 'fold'} onClick={() => toggleQueued('fold')}><span aria-hidden="true">{queuedValid && queued?.kind === 'fold' ? '✓' : ''}</span></button></div><div className="action-slot"><button className="action-main action-continue" type="button" disabled={!active || busy} onClick={() => sendAction(due ? 'call' : 'check')}>{due ? `Igualar ${bb(Math.min(due, mine?.stack || 0))}` : 'Pasar'}</button><button className="preselect-toggle" type="button" disabled={!canQueue} aria-label={`${due ? `Igualar ${bb(Math.min(due, mine?.stack || 0))}` : 'Pasar'} automáticamente cuando llegue mi turno`} aria-pressed={!!queuedValid && queued?.kind === 'continue'} onClick={() => toggleQueued('continue')}><span aria-hidden="true">{queuedValid && queued?.kind === 'continue' ? '✓' : ''}</span></button></div><button className="action-raise" type="button" disabled={!active || busy || !game.canRaise} onClick={openRaise}>Subir</button></div>}
+    </section>}</div>
     {error && <p className="multiplayer-error" role="alert">{error}</p>}
     {chatNotice && !chatOpen && <p className="online-chat-notice" role="status">{chatNotice}</p>}
+    {peopleOpen && <RoomPeople room={room} onClose={() => setPeopleOpen(false)}/>}
     {chatOpen && <div className="multiplayer-chat-backdrop" onClick={() => setChatOpen(false)}><section className="multiplayer-chat" role="dialog" aria-modal="true" aria-label="Chat de la mesa" onClick={event => event.stopPropagation()}><header><strong>Chat de la mesa</strong>{active && <span className="online-chat-turn">Tu turno · {remaining}s</span>}<button type="button" aria-label="Cerrar chat" onClick={() => setChatOpen(false)}>×</button></header><div className="multiplayer-chat-messages" aria-live="polite">{chatMessages.length === 0 ? <p>Sin mensajes todavía.</p> : chatMessages.map((entry, index) => <p key={`${entry.sentAt}-${index}`}><strong>{entry.name}</strong> {entry.text}</p>)}</div>{chatNotice && <p className="multiplayer-chat-notice" role="status">{chatNotice}</p>}<form onSubmit={onSendChat}><input aria-label="Mensaje" type="text" maxLength={200} value={chatText} onChange={event => setChatText(event.target.value)} placeholder="Escribe un mensaje…"/><button type="submit" disabled={!chatText.trim() || !socketReady}>Enviar</button></form></section></div>}
-    <Confetti active={room.status === 'finished' && winnerReady === resultKey} winner={room.winnerName || 'Último jugador'} onLeave={onLeave} onRestart={onRematch} restartLabel={room.rematch?.accepted.includes(session.playerId) ? 'Esperando jugadores…' : 'Empezar de nuevo'} restartDisabled={busy || !!room.rematch?.accepted.includes(session.playerId)} details={<p className="online-rematch-countdown" role="status">{room.rematch?.insufficient ? 'Se necesitan al menos dos participantes para repetir.' : room.rematch ? `Nueva partida en ${Math.max(0, Math.ceil((room.rematch.deadline - now) / 1000))} s · ${room.rematch.accepted.length}/${room.players.length} personas listas` : 'Pulsa empezar de nuevo para abrir la votación de 15 segundos.'}</p>}/>
+    <Confetti active={room.status === 'finished' && winnerReady === resultKey} winner={room.winnerName || 'Último jugador'} onLeave={onLeave} onRestart={onRematch} restartLabel={isSpectator ? 'Solo espectadores' : room.rematch?.accepted.includes(session.playerId) ? 'Esperando jugadores…' : 'Empezar de nuevo'} restartDisabled={isSpectator || busy || !!room.rematch?.accepted.includes(session.playerId)} details={<p className="online-rematch-countdown" role="status">{isSpectator ? 'Si los jugadores repiten, podrás seguir viendo la mesa.' : room.rematch?.insufficient ? 'Se necesitan al menos dos participantes para repetir.' : room.rematch ? `Nueva partida en ${Math.max(0, Math.ceil((room.rematch.deadline - now) / 1000))} s · ${room.rematch.accepted.length}/${room.players.length} personas listas` : 'Pulsa empezar de nuevo para abrir la votación de 15 segundos.'}</p>}/>
     {eliminationQueue.length > 0 && <EliminationAnimation key={`${resultKey}:${eliminationQueue[0]}`} seat={eliminationQueue[0]} name={game.seats.find(seat => seat.seat === eliminationQueue[0])?.name || 'Jugador'} targetSelector={eliminationQueue[0] === mine?.seat ? '.player-dock .private-slots' : `[data-seat="${eliminationQueue[0]}"]`} onBlast={() => { setBlasted(current => [...current, eliminationQueue[0]]); if (eliminationQueue[0] === mine?.seat) haptic('ELIMINATED'); }} onComplete={() => setEliminationQueue(current => current.slice(1))} feedback={feedback}/>}
   </main>;
 }

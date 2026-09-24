@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { ROOM_TTL_MS, cleanName, firstFreeSeat, passwordDigest, publicRoom, publicSnapshot, sameDigest, validateRoomInput } from './room-core.mjs';
+import { ROOM_TTL_MS, firstFreeSeat, passwordDigest, publicRoom, publicSnapshot, registrationClosed, requiredPlayerName, sameDigest, validateRoomInput } from './room-core.mjs';
 import { beginHand, canBegin, applyPlayerAction, forfeitPlayer, advanceExpiredTurn, publicGame, voteRematch, resolveRematch } from './game.mjs';
 import { randomInt } from '../src/poker/deck.ts';
 import { BOT_PROFILES } from '../src/poker/botProfiles.ts';
@@ -7,6 +7,7 @@ import { BOT_PROFILES } from '../src/poker/botProfiles.ts';
 const DIRECTORY_ID = 'texas-rooms-v1';
 const ROOM_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const RECONNECT_MS = 5 * 60 * 1000;
+const MAX_SPECTATORS = 24;
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {
   status,
@@ -44,7 +45,7 @@ export class TexasDirectory extends DurableObject {
       try {
         const input = await readBody(request);
         const config = validateRoomInput(input);
-        const playerName = cleanName(input.playerName, 'Jugador', 12);
+        const playerName = requiredPlayerName(input.playerName);
         return await this.ctx.blockConcurrencyWhile(async () => {
           const rooms = (await this.ctx.storage.get('rooms')) || {};
           for (const [id, room] of Object.entries(rooms)) {
@@ -82,7 +83,8 @@ export class TexasRoom extends DurableObject {
 
   snapshot(room, viewerId = null) {
     const online = new Set(this.ctx.getWebSockets().map(socket => socket.deserializeAttachment()?.playerId));
-    return { ...publicSnapshot(room), game: publicGame(room, viewerId), players: room.players.map(player => ({ id: player.id, name: player.name, seat: player.seat, isBot: false, online: online.has(player.id), connection: online.has(player.id) ? 'connected' : player.connectedOnce ? 'reconnecting' : 'disconnected' })) };
+    const presence = member => online.has(member.id) ? 'connected' : member.connectedOnce ? 'reconnecting' : 'disconnected';
+    return { ...publicSnapshot(room), game: publicGame(room, viewerId), players: room.players.map(player => ({ id: player.id, name: player.name, seat: player.seat, isBot: false, online: online.has(player.id), connection: presence(player) })), spectators: (room.spectators || []).map(member => ({ id: member.id, name: member.name, connection: presence(member) })) };
   }
 
   broadcast(room) {
@@ -94,7 +96,7 @@ export class TexasRoom extends DurableObject {
 
   closeExcludedPlayers(room) {
     if (!room.joinLocked || room.status !== 'playing') return;
-    const accepted = new Set(room.players.map(player => player.id));
+    const accepted = new Set([...room.players, ...(room.spectators || [])].map(player => player.id));
     for (const socket of this.ctx.getWebSockets()) {
       if (!accepted.has(socket.deserializeAttachment()?.playerId)) socket.close(1008, 'Nueva partida sin tu participación');
     }
@@ -110,8 +112,10 @@ export class TexasRoom extends DurableObject {
       // A directory outage must not make an already-persisted join look unsuccessful.
       await this.ctx.storage.setAlarm(Date.now() + 10_000);
     }
-    const nextAlarm = room.rematch?.deadline || room.game?.deadline;
-    if (nextAlarm) await this.ctx.storage.setAlarm(Math.max(Date.now() + 100, nextAlarm));
+    const expiries = (room.spectators || []).filter(member => member.disconnectedAt).map(member => member.disconnectedAt + RECONNECT_MS);
+    if (room.status === 'waiting') expiries.push(...room.players.filter(member => member.disconnectedAt).map(member => member.disconnectedAt + RECONNECT_MS));
+    const nextAlarm = Math.min(...[room.rematch?.deadline, room.game?.deadline, ...expiries].filter(value => value > 0));
+    if (Number.isFinite(nextAlarm)) await this.ctx.storage.setAlarm(Math.max(Date.now() + 100, nextAlarm));
     this.broadcast(room);
   }
 
@@ -125,17 +129,17 @@ export class TexasRoom extends DurableObject {
         const id = input.id;
         if (!ROOM_ID.test(id)) return error('Identificador inválido.');
         if (!/^[0-9A-V]{10}$/.test(input.code)) return error('Código de mesa inválido.');
-        const player = { id: crypto.randomUUID(), token: secret(), name: cleanName(input.playerName, 'Jugador', 12), seat: 0 };
+        const player = { id: crypto.randomUUID(), token: secret(), name: requiredPlayerName(input.playerName), seat: 0 };
         const salt = config.isPrivate ? secret() : '';
         const room = {
           id, code: input.code, name: config.name, maxPlayers: config.maxPlayers, botCount: config.botCount, turnSeconds: config.turnSeconds, isPrivate: config.isPrivate,
           mode: config.mode, chips: config.chips, small: config.small, big: config.big, minutes: config.minutes,
           growing: config.growing, breaks: config.breaks, every: config.every, rest: config.rest,
           passwordSalt: salt, passwordHash: config.isPrivate ? await passwordDigest(config.password, salt) : '',
-          hostId: player.id, players: [player], status: 'waiting', tournamentId: 1, updatedAt: Date.now(),
+          hostId: player.id, players: [player], spectators: [], status: 'waiting', tournamentId: 1, updatedAt: Date.now(),
           botProfiles: Array.from({ length: config.botCount }, () => randomInt(BOT_PROFILES.length)),
         };
-        if (canBegin(room)) beginHand(room);
+        if (room.mode !== 'tournament' && canBegin(room)) beginHand(room);
         await this.ctx.storage.put('room', room);
         await this.ctx.storage.setAlarm(room.game?.deadline || Date.now() + RECONNECT_MS);
         return json({ room: this.snapshot(room, player.id), playerId: player.id, token: player.token }, 201);
@@ -147,19 +151,42 @@ export class TexasRoom extends DurableObject {
         const input = await readBody(request);
         return await this.ctx.blockConcurrencyWhile(async () => {
           const room = await this.load();
-          if (!room || room.joinLocked || !['waiting', 'playing'].includes(room.status) || Date.now() - room.updatedAt >= ROOM_TTL_MS) return error('La mesa ya no admite jugadores nuevos.', 404);
+          if (!room || room.joinLocked || registrationClosed(room) || !['waiting', 'playing'].includes(room.status) || Date.now() - room.updatedAt >= ROOM_TTL_MS) return error('La inscripción está cerrada. Puedes entrar como espectador.', 409);
           if (room.isPrivate) {
             const digest = await passwordDigest(typeof input.password === 'string' ? input.password : '', room.passwordSalt);
             if (!sameDigest(digest, room.passwordHash)) return error('Contraseña incorrecta.', 403);
           }
           const seat = firstFreeSeat(room.players, room.maxPlayers);
           if (seat < 0) return error('La mesa está llena.', 409);
-          const player = { id: crypto.randomUUID(), token: secret(), name: cleanName(input.playerName, 'Jugador', 12), seat };
+          const name = requiredPlayerName(input.playerName);
+          const player = { id: crypto.randomUUID(), token: secret(), name, seat, pendingHand: !!room.game };
           room.players.push(player);
           room.updatedAt = Date.now();
-          if (!room.game && canBegin(room)) beginHand(room);
+          if (room.mode !== 'tournament' && !room.game && canBegin(room)) beginHand(room);
           await this.publish(room);
           return json({ room: this.snapshot(room, player.id), playerId: player.id, token: player.token });
+        });
+      } catch (cause) { return error(cause.message); }
+    }
+
+    if (path === '/spectate' && request.method === 'POST') {
+      try {
+        const input = await readBody(request);
+        return await this.ctx.blockConcurrencyWhile(async () => {
+          const room = await this.load();
+          if (!room || !['waiting', 'playing', 'finished'].includes(room.status)) return error('Mesa no disponible.', 404);
+          if (room.isPrivate) {
+            const digest = await passwordDigest(typeof input.password === 'string' ? input.password : '', room.passwordSalt);
+            if (!sameDigest(digest, room.passwordHash)) return error('Contraseña incorrecta.', 403);
+          }
+          const name = requiredPlayerName(input.playerName);
+          room.spectators ||= [];
+          if (room.spectators.length >= MAX_SPECTATORS) return error('La zona de espectadores está llena.', 409);
+          const spectator = { id: crypto.randomUUID(), token: secret(), name };
+          room.spectators.push(spectator);
+          room.updatedAt = Date.now();
+          await this.publish(room);
+          return json({ room: this.snapshot(room, spectator.id), playerId: spectator.id, token: spectator.token, role: 'spectator' });
         });
       } catch (cause) { return error(cause.message); }
     }
@@ -168,10 +195,26 @@ export class TexasRoom extends DurableObject {
     if (!room || !['waiting', 'playing', 'finished'].includes(room.status)) return error('Mesa no disponible.', 404);
     const token = path === '/socket' ? new URL(request.url).searchParams.get('token') : request.headers.get('Authorization')?.replace(/^Bearer /, '');
     const player = room.players.find(entry => entry.token === token);
-    if (!player) return error('Acceso a la mesa no autorizado.', 401);
+    const spectator = (room.spectators || []).find(entry => entry.token === token);
+    const member = player || spectator;
+    if (!member) return error('Acceso a la mesa no autorizado.', 401);
 
-    if (path === '/snapshot' && request.method === 'GET') return json(this.snapshot(room, player.id));
+    if (path === '/snapshot' && request.method === 'GET') return json(this.snapshot(room, member.id));
+    if (path === '/start' && request.method === 'POST') {
+      if (!player || room.hostId !== player.id) return error('Solo quien creó la mesa puede iniciar el torneo.', 403);
+      return this.ctx.blockConcurrencyWhile(async () => {
+        const current = await this.load();
+        if (current.hostId !== player.id) return error('Solo quien creó la mesa puede iniciar el torneo.', 403);
+        if (current.mode !== 'tournament' || registrationClosed(current) || !canBegin(current)) return error('El torneo no se puede iniciar todavía.', 409);
+        current.tournamentStartedAt = Date.now();
+        beginHand(current);
+        current.updatedAt = Date.now();
+        await this.publish(current);
+        return json(this.snapshot(current, player.id));
+      });
+    }
     if (path === '/rematch' && request.method === 'POST') {
+      if (!player) return error('Los espectadores no votan para repetir.', 403);
       try {
         return await this.ctx.blockConcurrencyWhile(async () => {
           const current = await this.load();
@@ -183,6 +226,7 @@ export class TexasRoom extends DurableObject {
       } catch (cause) { return error(cause.message); }
     }
     if (path === '/action' && request.method === 'POST') {
+      if (!player) return error('Los espectadores no pueden actuar.', 403);
       try {
         const input = await readBody(request);
         return await this.ctx.blockConcurrencyWhile(async () => {
@@ -197,6 +241,12 @@ export class TexasRoom extends DurableObject {
     if (path === '/leave' && request.method === 'DELETE') {
       return this.ctx.blockConcurrencyWhile(async () => {
         const current = await this.load();
+        if (!player) {
+          current.spectators = (current.spectators || []).filter(entry => entry.id !== spectator.id);
+          for (const socket of this.ctx.getWebSockets()) if (socket.deserializeAttachment()?.playerId === spectator.id) socket.close(1000, 'Salió de la mesa');
+          await this.publish(current);
+          return json({ ok: true });
+        }
         const index = current.players.findIndex(entry => entry.id === player.id);
         if (index < 0) return error('Jugador no encontrado.', 404);
         forfeitPlayer(current, player.seat);
@@ -211,14 +261,15 @@ export class TexasRoom extends DurableObject {
       });
     }
     if (path === '/socket' && request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
-      for (const socket of this.ctx.getWebSockets()) if (socket.deserializeAttachment()?.playerId === player.id) socket.close(1000, 'Nueva conexión');
+      for (const socket of this.ctx.getWebSockets()) if (socket.deserializeAttachment()?.playerId === member.id) socket.close(1000, 'Nueva conexión');
       const [client, server] = Object.values(new WebSocketPair());
       this.ctx.acceptWebSocket(server);
-      server.serializeAttachment({ playerId: player.id });
-      player.connectedOnce = true;
-      if (!room.game && canBegin(room)) beginHand(room);
+      server.serializeAttachment({ playerId: member.id });
+      member.connectedOnce = true;
+      member.disconnectedAt = null;
+      if (room.mode !== 'tournament' && !room.game && canBegin(room)) beginHand(room);
       await this.publish(room);
-      server.send(JSON.stringify({ type: 'room', room: this.snapshot(room, player.id) }));
+      server.send(JSON.stringify({ type: 'room', room: this.snapshot(room, member.id) }));
       return new Response(null, { status: 101, webSocket: client });
     }
     return error('Ruta no encontrada.', 404);
@@ -236,7 +287,7 @@ export class TexasRoom extends DurableObject {
     if (!attachment?.playerId || Date.now() - (attachment.lastChatAt || 0) < 750) { socket.send(JSON.stringify({ type: 'error', error: 'Espera un momento antes de enviar otro mensaje.' })); return; }
     socket.serializeAttachment({ ...attachment, lastChatAt: Date.now() });
     const room = await this.load();
-    const player = room?.players.find(entry => entry.id === attachment.playerId);
+    const player = [...(room?.players || []), ...(room?.spectators || [])].find(entry => entry.id === attachment.playerId);
     if (!player) return;
     const payload = JSON.stringify({ type: 'chat', playerId: player.id, name: player.name, text, sentAt: Date.now() });
     for (const peer of this.ctx.getWebSockets()) { try { peer.send(payload); } catch { /* Disconnected peer. */ } }
@@ -246,8 +297,12 @@ export class TexasRoom extends DurableObject {
     socket.close(1000, 'Conexión cerrada');
     const room = await this.load();
     if (room && room.status !== 'closed') {
-      this.broadcast(room);
-      await this.ctx.storage.setAlarm(room.rematch?.deadline || room.game?.deadline || Date.now() + RECONNECT_MS);
+      const id = socket.deserializeAttachment()?.playerId;
+      const member = [...room.players, ...(room.spectators || [])].find(entry => entry.id === id);
+      if (member && !this.ctx.getWebSockets().some(peer => peer !== socket && peer.deserializeAttachment()?.playerId === id)) {
+        member.disconnectedAt = Date.now();
+        await this.publish(room);
+      } else this.broadcast(room);
     }
   }
 
@@ -260,6 +315,14 @@ export class TexasRoom extends DurableObject {
       await internalFetch(directory(this.env), '/update', 'POST', publicRoom(room));
       return;
     }
+    const online = new Set(this.ctx.getWebSockets().map(socket => socket.deserializeAttachment()?.playerId));
+    const now = Date.now();
+    room.spectators = (room.spectators || []).filter(member => online.has(member.id) || !member.disconnectedAt || now - member.disconnectedAt < RECONNECT_MS);
+    if (room.status === 'waiting') {
+      room.players = room.players.filter(member => online.has(member.id) || !member.disconnectedAt || now - member.disconnectedAt < RECONNECT_MS);
+      room.hostId = room.players.some(member => member.id === room.hostId) ? room.hostId : room.players[0]?.id || null;
+      if (!room.players.length) room.status = 'closed';
+    }
     if (room.status === 'finished' && room.rematch?.deadline && Date.now() >= room.rematch.deadline) {
       resolveRematch(room);
       room.updatedAt = Date.now();
@@ -271,19 +334,6 @@ export class TexasRoom extends DurableObject {
       await this.publish(room);
       return;
     }
-    if (room.rematch?.deadline || room.game?.deadline) {
-      await this.ctx.storage.setAlarm(Math.max(Date.now() + 100, room.rematch?.deadline || room.game.deadline));
-      return;
-    }
-    const online = new Set(this.ctx.getWebSockets().map(socket => socket.deserializeAttachment()?.playerId));
-    const before = room.players.length;
-    room.players = room.players.filter(player => online.has(player.id));
-    if (room.players.length === before) {
-      await internalFetch(directory(this.env), '/update', 'POST', publicRoom(room));
-      return;
-    }
-    room.hostId = room.players.some(player => player.id === room.hostId) ? room.hostId : room.players[0]?.id || null;
-    room.status = room.players.length ? room.status === 'finished' ? 'finished' : 'waiting' : 'closed';
     room.updatedAt = Date.now();
     await this.publish(room);
   }
@@ -311,14 +361,14 @@ export default {
       if (url.pathname === '/api/health' && request.method === 'GET') return cors(json({ ok: true, service: 'texas-multiplayer' }));
       if (url.pathname === '/api/rooms' && request.method === 'GET') return cors(await internalFetch(directory(env), '/list'));
       if (url.pathname === '/api/rooms' && request.method === 'POST') return cors(await directory(env).fetch(new Request('https://internal/create', request)));
-      const match = url.pathname.match(/^\/api\/rooms\/([^/]+)\/(join|snapshot|leave|socket|action|rematch)$/);
+      const match = url.pathname.match(/^\/api\/rooms\/([^/]+)\/(join|spectate|start|snapshot|leave|socket|action|rematch)$/);
       if (!match || !ROOM_ID.test(match[1])) return cors(error('Ruta no encontrada.', 404));
       const [, id, action] = match;
       if (action === 'socket') {
         if (request.method !== 'GET' || request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return cors(error('Conexión WebSocket requerida.', 426));
         return roomStub(env, id).fetch(new Request(`https://internal/socket${url.search}`, request));
       }
-      const method = action === 'join' || action === 'action' || action === 'rematch' ? 'POST' : action === 'leave' ? 'DELETE' : 'GET';
+      const method = ['join', 'spectate', 'start', 'action', 'rematch'].includes(action) ? 'POST' : action === 'leave' ? 'DELETE' : 'GET';
       if (request.method !== method) return cors(error('Método no permitido.', 405));
       const response = await roomStub(env, id).fetch(new Request(`https://internal/${action}`, request));
       return cors(response);

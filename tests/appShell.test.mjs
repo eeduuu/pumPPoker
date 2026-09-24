@@ -467,7 +467,7 @@ test('Blackjack permite elegir modo y jugar en mesa propia sin activar multijuga
     readFile(new URL('../src/BlackjackSoloHub.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.match(hub, /<button className="game-choice blackjack-choice" type="button" onClick=\{enterBlackjack\}>/);
+  assert.match(hub, /<button className="game-choice blackjack-choice" type="button" disabled=\{!nameReady\} onClick=\{enterBlackjack\}>/);
   assert.match(hub, /<strong>Blackjack<\/strong><small>Juega contra la banca<\/small>/);
   assert.match(modes, /<strong>Multijugador<\/strong><small>Próximamente<\/small>/);
   assert.match(modes, /className="game-choice multiplayer-choice" aria-disabled="true"/);
@@ -487,13 +487,16 @@ test('La pantalla inicial abre directamente Texas y Blackjack, con nombre e inst
     readFile(new URL('../src/TexasMultiplayerHub.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.match(app, /useState<'hub'\|'texas-mode'\|'texas-multiplayer'\|'texas'\|'blackjack-mode'\|'blackjack-solo'>\(\(\) => new URLSearchParams/);
+  assert.match(app, /useState<'hub'\|'texas-mode'\|'texas-multiplayer'\|'texas'\|'blackjack-mode'\|'blackjack-solo'>\(\(\) => savedRoomSession\(\)/);
   assert.match(app, /\? 'texas-multiplayer' : 'hub'/);
   assert.doesNotMatch(app, /HomeHub|setScreen\('home'\)/);
-  assert.match(app, /<GameHub onTexas=\{\(\)=>setScreen\('texas-mode'\)\} onBlackjack=\{\(\)=>setScreen\('blackjack-mode'\)\} playerName=\{playerName\} onPlayerNameChange=\{setPlayerName\}/);
+  assert.match(app, /<GameHub onTexas=\{\(\)=>setScreen\(new URLSearchParams/);
+  assert.match(app, /onBlackjack=\{\(\)=>setScreen\('blackjack-mode'\)\} playerName=\{playerName\} onPlayerNameChange=\{setPlayerName\}/);
   assert.match(app, /<TexasModeHub onSolo=\{\(\)=>setScreen\('texas'\)\} onMultiplayer=\{\(\)=>setScreen\('texas-multiplayer'\)\} onBack=\{\(\)=>setScreen\('hub'\)\}/);
-  assert.match(app, /<TexasMultiplayerHub playerName=\{displayedName\} onBack=\{\(\)=>setScreen\('texas-mode'\)\}/);
+  assert.match(app, /<TexasMultiplayerHub playerName=\{playerName\} onBack=\{\(\)=>setScreen\('texas-mode'\)\}/);
   assert.match(hub, /id="player-name"/);
+  assert.match(hub, /Obligatorio · 2–12 caracteres/);
+  assert.doesNotMatch(multiplayer, /className="multiplayer-name"/);
   assert.match(hub, /<InstallApp\/>/, 'La instalación permanece en la pantalla inicial');
   assert.doesNotMatch(hub, /<strong>Casino<\/strong>|className="game-choice mesa-choice"|← Inicio/);
   assert.match(modes, /<strong>Multijugador<\/strong><small>Crear o buscar una mesa<\/small>/);
@@ -505,6 +508,20 @@ test('La pantalla inicial abre directamente Texas y Blackjack, con nombre e inst
   assert.match(multiplayer, /roomSocketUrl/);
   assert.match(modes, /<strong>1 jugador<\/strong>/);
   assert.match(app, /setTableHand\(null\); setStep\(0\);/, 'Abandonar mesa conserva el regreso a normal o torneo');
+});
+
+test('La sala de espera prioriza empezar torneo y la mesa online vibra solo por eventos', async () => {
+  const [lobby, online] = await Promise.all([
+    readFile(new URL('../src/TexasMultiplayerHub.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/TexasOnlineTable.tsx', import.meta.url), 'utf8'),
+  ]);
+  const waiting = lobby.slice(lobby.indexOf('className="multiplayer-panel multiplayer-waiting"'));
+  assert.ok(waiting.indexOf('Empezar torneo') < waiting.indexOf('className="multiplayer-players"'));
+  assert.match(online, /emitOnce\(`\$\{prefix\}:start`, 'GAME_START'\)/);
+  assert.match(online, /emitOnce\(turnKey, 'TURN_START'\)/);
+  assert.match(online, /suppressTurnVibration\.current = true/);
+  assert.match(online, /haptic\('ELIMINATED'\)/);
+  assert.doesNotMatch(online, /haptic\('(CHECK|CALL|RAISE|ALL_IN)'\)/);
 });
 
 test('Pedir carta mantiene las acciones visibles durante el reparto si el turno continúa', async () => {

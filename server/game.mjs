@@ -37,7 +37,7 @@ export function canBegin(room) { return occupiedSeats(room).size >= 2; }
 function stacksForNextHand(room) {
   const occupied = occupiedSeats(room);
   return Array.from({ length: room.maxPlayers + room.botCount }, (_, seat) =>
-    occupied.has(seat) && !(room.mode === 'tournament' && room.eliminated?.includes(seat)) ? room.stacks?.[seat] || chipsFor(room) : 0);
+    occupied.has(seat) && !(room.mode === 'tournament' && room.eliminated?.includes(seat)) ? room.players.find(player => player.seat === seat)?.pendingHand ? chipsFor(room) : room.stacks?.[seat] || chipsFor(room) : 0);
 }
 
 function deadlineFor(room) {
@@ -117,6 +117,7 @@ export function beginHand(room, now = Date.now()) {
   }
   room.level = level;
   const stacks = stacksForNextHand(room);
+  room.players.forEach(player => { player.pendingHand = false; });
   const previous = room.game?.hand;
   const live = [...stacks.keys()].filter(seat => stacks[seat] > 0);
   if (live.length < 2) { room.game = null; room.status = 'waiting'; return; }
@@ -170,8 +171,8 @@ export function publicGame(room, viewerId) {
   const game = room.game;
   if (!game) return null;
   const runout = game.phase === 'playing' && isAllInRunout(game.betting);
-  const viewer = room.players.find(player => player.id === viewerId);
-  const humanBySeat = new Map(room.players.map(player => [player.seat, player]));
+  const viewer = room.players.find(player => player.id === viewerId && !player.pendingHand);
+  const humanBySeat = new Map(room.players.filter(player => !player.pendingHand).map(player => [player.seat, player]));
   const seats = game.betting.players.map((bet, seat) => {
     const human = humanBySeat.get(seat);
     const active = game.hand.players[seat].cards.length === 2;

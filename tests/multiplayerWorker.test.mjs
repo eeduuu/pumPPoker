@@ -11,6 +11,7 @@ registerHooks({
 });
 
 const { TexasDirectory, TexasRoom, default: worker } = await import('../server/index.mjs');
+const { beginHand } = await import('../server/game.mjs');
 
 function context() {
   const values = new Map();
@@ -95,7 +96,7 @@ test('Una mesa con bots comienza de verdad y continúa visible para personas que
   assert.equal(joined.status, 200);
   const guest = await joined.json();
   assert.equal(guest.room.game.seats.find(seat => seat.id === room.players[0].id).cards, null);
-  assert.equal(guest.room.game.seats.find(seat => seat.id === guest.playerId).active, false);
+  assert.equal(guest.room.game.seats.find(seat => seat.id === guest.playerId), undefined, 'El invitado espera a la siguiente mano sin heredar el asiento anterior.');
   const invalid = await call(env, '/api/rooms', 'POST', { maxPlayers: 8, botCount: 2, turnSeconds: 6, playerName: 'Ana' });
   assert.equal(invalid.status, 400);
 });
@@ -104,6 +105,7 @@ test('La votación de revancha se publica por el Worker y espera a todas las per
   const env = environment();
   const created = await (await call(env, '/api/rooms', 'POST', { name: 'Torneo', maxPlayers: 2, mode: 'tournament', playerName: 'Ana' })).json();
   const guest = await (await call(env, `/api/rooms/${created.room.id}/join`, 'POST', { playerName: 'Beto' })).json();
+  assert.equal((await call(env, `/api/rooms/${created.room.id}/start`, 'POST', {}, created.token)).status, 200);
   const instance = env.previewRooms.get(created.room.id);
   const current = await instance.load();
   current.status = 'finished'; current.game.phase = 'result'; current.game.deadline = 0; current.winnerName = 'Ana';
@@ -119,6 +121,69 @@ test('La votación de revancha se publica por el Worker y espera a todas las per
   assert.equal(second.joinLocked, true);
   assert.equal(second.rematch, null);
   assert.equal(JSON.stringify(second).includes(created.token), false);
+});
+
+test('El torneo exige inicio del creador y solo admite espectadores después', async () => {
+  const env = environment();
+  assert.equal((await call(env, '/api/rooms', 'POST', { mode: 'tournament', maxPlayers: 2, botCount: 1, playerName: '' })).status, 400);
+  assert.equal((await call(env, '/api/rooms', 'POST', { mode: 'tournament', maxPlayers: 2, botCount: 1, playerName: 'Bot 1' })).status, 400);
+  const host = await (await call(env, '/api/rooms', 'POST', { mode: 'tournament', maxPlayers: 2, botCount: 1, playerName: 'Ana' })).json();
+  const id = host.room.id;
+  assert.equal(host.room.status, 'waiting');
+  assert.equal(host.room.game, null);
+  assert.equal(host.room.registrationClosed, false);
+  assert.equal((await call(env, `/api/rooms/${id}/start`, 'POST', {}, 'wrong')).status, 401);
+  const started = await (await call(env, `/api/rooms/${id}/start`, 'POST', {}, host.token)).json();
+  assert.equal(started.status, 'playing');
+  assert.equal(started.registrationClosed, true);
+  assert.equal((await call(env, `/api/rooms/${id}/start`, 'POST', {}, host.token)).status, 409);
+  assert.equal((await call(env, `/api/rooms/${id}/join`, 'POST', { playerName: 'Beto' })).status, 409);
+  const watcher = await (await call(env, `/api/rooms/${id}/spectate`, 'POST', { playerName: 'Beto' })).json();
+  assert.equal(watcher.role, 'spectator');
+  assert.equal(watcher.room.spectators.length, 1);
+  assert.equal(watcher.room.game.seats.find(seat => seat.id === host.playerId).cards, null);
+  assert.equal((await call(env, `/api/rooms/${id}/action`, 'POST', { action: 'fold' }, watcher.token)).status, 403);
+  assert.equal((await call(env, `/api/rooms/${id}/rematch`, 'POST', {}, watcher.token)).status, 403);
+  assert.equal((await call(env, `/api/rooms/${id}/snapshot`, 'GET', undefined, watcher.token)).status, 200);
+  assert.equal((await call(env, `/api/rooms/${id}/leave`, 'DELETE', undefined, watcher.token)).status, 200);
+  assert.equal((await (await call(env, `/api/rooms/${id}/snapshot`, 'GET', undefined, host.token)).json()).spectators.length, 0);
+});
+
+test('Un invitado a partida normal no hereda cartas ni fichas de un asiento abandonado', async () => {
+  const env = environment();
+  const host = await (await call(env, '/api/rooms', 'POST', { maxPlayers: 2, playerName: 'Ana' })).json();
+  const id = host.room.id;
+  const guest = await (await call(env, `/api/rooms/${id}/join`, 'POST', { playerName: 'Beto' })).json();
+  await call(env, `/api/rooms/${id}/leave`, 'DELETE', undefined, host.token);
+  const newcomer = await (await call(env, `/api/rooms/${id}/join`, 'POST', { playerName: 'Cris' })).json();
+  assert.equal(newcomer.room.players.some(player => player.id === newcomer.playerId), true);
+  assert.equal(newcomer.room.game.seats.find(seat => seat.id === newcomer.playerId), undefined);
+  assert.equal((await env.previewRooms.get(id).load()).players.find(player => player.id === newcomer.playerId).pendingHand, true);
+  const instance = env.previewRooms.get(id);
+  const current = await instance.load();
+  beginHand(current);
+  const next = instance.snapshot(current, newcomer.playerId);
+  const seat = next.game.seats.find(entry => entry.id === newcomer.playerId);
+  assert.equal(seat.cards.length, 2);
+  assert.equal(seat.stack + seat.committed, 10_000);
+});
+
+test('Una sala privada también exige contraseña para mirar y el chat del espectador es efímero', async () => {
+  const env = environment();
+  const host = await (await call(env, '/api/rooms', 'POST', { mode: 'tournament', maxPlayers: 2, botCount: 1, isPrivate: true, password: 'secreto7', playerName: 'Ana' })).json();
+  const id = host.room.id;
+  assert.equal((await call(env, `/api/rooms/${id}/spectate`, 'POST', { playerName: 'Beto', password: 'mal' })).status, 403);
+  const spectator = await (await call(env, `/api/rooms/${id}/spectate`, 'POST', { playerName: 'Beto', password: 'secreto7' })).json();
+  const sameName = await (await call(env, `/api/rooms/${id}/join`, 'POST', { playerName: 'Beto', password: 'secreto7' })).json();
+  assert.notEqual(sameName.playerId, spectator.playerId, 'Las sesiones se identifican por token, no por el nombre visible.');
+  const room = env.previewRooms.get(id);
+  const messages = [];
+  let attachment = { playerId: spectator.playerId };
+  const socket = { deserializeAttachment: () => attachment, serializeAttachment: value => { attachment = value; }, send: value => messages.push(JSON.parse(value)) };
+  room.ctx.getWebSockets = () => [socket];
+  await room.webSocketMessage(socket, JSON.stringify({ type: 'chat', text: 'Vamos' }));
+  assert.equal(messages[0].name, 'Beto');
+  assert.equal((await room.load()).chat, undefined);
 });
 
 test('Las acciones HTTP solo las acepta del jugador activo y actualizan la misma mano', async () => {
@@ -140,7 +205,7 @@ test('Las acciones HTTP solo las acepta del jugador activo y actualizan la misma
     const updated = await result.json();
     assert.equal(updated.game.number, 1);
     assert.equal(updated.game.seats.find(seat => seat.id === actor.playerId).cards.length, 2);
-    assert.equal(updated.game.seats.find(seat => seat.id === nonActor.playerId).cards, null);
+    assert.equal(updated.game.seats.find(seat => seat.id === nonActor.playerId)?.cards ?? null, null);
   }
 });
 
