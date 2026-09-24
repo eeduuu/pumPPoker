@@ -9,6 +9,7 @@ import { AudioPreferences, FeedbackProvider, useFeedback } from './feedback';
 import { GameHub } from './GameHub';
 import { HomeHub } from './HomeHub';
 import { TexasModeHub } from './TexasModeHub';
+import { TexasMultiplayerHub } from './TexasMultiplayerHub';
 import { BlackjackModeHub } from './BlackjackModeHub';
 import { BlackjackSoloHub } from './BlackjackSoloHub';
 import { displayPlayerName, readPlayerName, savePlayerName } from './playerProfile';
@@ -20,7 +21,7 @@ type Config = { mode: 'normal' | 'tournament'; bots: number; chips: number; smal
 const initial: Config = { mode: 'normal', bots: 3, chips: 5000, small: 25, big: 50, minutes: 10, growing: false, breaks: true, every: 3, rest: 5 };
 const titles = ['Tu partida, tus reglas.', '¿Quién se sienta?', 'Marca el ritmo.', 'Todo listo para empezar.'];
 function App() {
- const [screen,setScreen]=useState<'home'|'hub'|'texas-mode'|'texas'|'blackjack-mode'|'blackjack-solo'>('home');
+ const [screen,setScreen]=useState<'home'|'hub'|'texas-mode'|'texas-multiplayer'|'texas'|'blackjack-mode'|'blackjack-solo'>(() => new URLSearchParams(window.location.search).has('texasRoom') ? 'texas-multiplayer' : 'home');
  const [playerName,setPlayerName]=useState(readPlayerName);
  useEffect(()=>savePlayerName(playerName),[playerName]);
  const displayedName=displayPlayerName(playerName);
@@ -45,7 +46,8 @@ function App() {
  const move = (value: number) => { setStep(value); };
  if(screen==='home')return <HomeHub onCasino={()=>setScreen('hub')} playerName={playerName} onPlayerNameChange={setPlayerName}/>;
  if(screen==='hub')return <GameHub onTexas={()=>setScreen('texas-mode')} onBlackjack={()=>setScreen('blackjack-mode')} onBack={()=>setScreen('home')}/>;
- if(screen==='texas-mode')return <TexasModeHub onSolo={()=>setScreen('texas')} onBack={()=>setScreen('hub')}/>;
+ if(screen==='texas-mode')return <TexasModeHub onSolo={()=>setScreen('texas')} onMultiplayer={()=>setScreen('texas-multiplayer')} onBack={()=>setScreen('hub')}/>;
+ if(screen==='texas-multiplayer')return <TexasMultiplayerHub playerName={displayedName} onBack={()=>setScreen('texas-mode')}/>;
  if(screen==='blackjack-mode')return <BlackjackModeHub onSolo={()=>setScreen('blackjack-solo')} onBack={()=>setScreen('hub')}/>;
  if(screen==='blackjack-solo')return <BlackjackSoloHub playerName={displayedName} onBack={()=>setScreen('blackjack-mode')} onLobby={()=>setScreen('hub')}/>;
  if (tableHand) return <Table key={tableSession} config={c} hand={tableHand} playerName={displayedName} onRestart={restartTable} onLeave={() => { opening.current = false; setTableHand(null); setStep(0); }}/ >;

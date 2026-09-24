@@ -2,3 +2,6 @@ node_modules/
 dist/
 .npm-cache/
 *.log
+.wrangler/
+.dev.vars*
+.env.local

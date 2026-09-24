@@ -481,16 +481,18 @@ test('Blackjack permite elegir modo y jugar en mesa propia sin activar multijuga
 });
 
 test('La pantalla inicial separa Casino y Mesa y conserva el recorrido a Texas', async () => {
-  const [home, hub, modes, app] = await Promise.all([
+  const [home, hub, modes, multiplayer, app] = await Promise.all([
     readFile(new URL('../src/HomeHub.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/GameHub.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/TexasModeHub.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/TexasMultiplayerHub.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.match(app, /useState<'home'\|'hub'\|'texas-mode'\|'texas'\|'blackjack-mode'\|'blackjack-solo'>\('home'\)/);
+  assert.match(app, /useState<'home'\|'hub'\|'texas-mode'\|'texas-multiplayer'\|'texas'\|'blackjack-mode'\|'blackjack-solo'>\(\(\) => new URLSearchParams/);
   assert.match(app, /<HomeHub onCasino=\{\(\)=>setScreen\('hub'\)\}/);
   assert.match(app, /<GameHub onTexas=\{\(\)=>setScreen\('texas-mode'\)\} onBlackjack=\{\(\)=>setScreen\('blackjack-mode'\)\} onBack=\{\(\)=>setScreen\('home'\)\}/);
-  assert.match(app, /<TexasModeHub onSolo=\{\(\)=>setScreen\('texas'\)\} onBack=\{\(\)=>setScreen\('hub'\)\}/);
+  assert.match(app, /<TexasModeHub onSolo=\{\(\)=>setScreen\('texas'\)\} onMultiplayer=\{\(\)=>setScreen\('texas-multiplayer'\)\} onBack=\{\(\)=>setScreen\('hub'\)\}/);
+  assert.match(app, /<TexasMultiplayerHub playerName=\{displayedName\} onBack=\{\(\)=>setScreen\('texas-mode'\)\}/);
   assert.match(home, /<strong>Casino<\/strong>/);
   assert.match(home, /<small>Juegos de casino<\/small>/);
   assert.match(home, /id="player-name"/);
@@ -499,8 +501,13 @@ test('La pantalla inicial separa Casino y Mesa y conserva el recorrido a Texas',
   assert.match(home, /<InstallApp\/>/, 'La instalación está en la pantalla inicial');
   assert.doesNotMatch(hub, /InstallApp/, 'La instalación no se repite dentro de Casino');
   assert.match(hub, /← Inicio/, 'Desde Casino se vuelve a la pantalla inicial');
-  assert.match(modes, /<strong>Multijugador<\/strong><small>Próximamente<\/small>/);
-  assert.match(modes, /className="game-choice multiplayer-choice" aria-disabled="true"/);
+  assert.match(modes, /<strong>Multijugador<\/strong><small>Crear o buscar una mesa<\/small>/);
+  assert.match(modes, /onMultiplayer\(\)/);
+  assert.match(multiplayer, /<strong>Crear mesa<\/strong>/);
+  assert.match(multiplayer, /<strong>Buscar mesa<\/strong>/);
+  assert.match(multiplayer, /createRoom/);
+  assert.match(multiplayer, /joinRoom/);
+  assert.match(multiplayer, /roomSocketUrl/);
   assert.match(modes, /<strong>1 jugador<\/strong>/);
   assert.match(app, /setTableHand\(null\); setStep\(0\);/, 'Abandonar mesa conserva el regreso a normal o torneo');
 });

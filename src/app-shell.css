@@ -52,6 +52,33 @@ button.game-choice:hover{border-color:var(--accent);background:#25382d;transform
 .game-choice strong{display:block;font-family:Georgia,serif;font-size:20px;font-weight:500}
 .game-choice small{display:block;margin-top:7px;color:var(--muted);font-size:11px;line-height:1.4}
 .game-choice>i{color:var(--accent);font-size:20px;font-style:normal}
+.multiplayer-preview{max-width:520px;padding:20px;border:1px solid var(--line);border-radius:12px;background:#192a23;color:#d4e2d5;font-size:14px;line-height:1.55}
+.multiplayer-preview p{margin:0 0 18px}
+.multiplayer-hub{max-height:calc(100dvh - 115px);overflow-y:auto;overscroll-behavior:contain;padding:4px 2px 12px}
+.multiplayer-panel{display:grid;gap:16px;padding:20px;border:1px solid var(--line);border-radius:12px;background:#192a23}
+.multiplayer-panel label{font-size:13px}
+.multiplayer-panel input[type=text],.multiplayer-panel input[type=password]{display:block;width:100%;height:44px;margin-top:7px;padding:0 11px;border:1px solid var(--line);border-radius:7px;background:#14251e;color:#f3f5eb;font-size:16px}
+.multiplayer-panel .check{margin:0}
+.multiplayer-panel .note{margin:0}
+.multiplayer-primary{min-height:48px;padding:10px 18px;border:0;border-radius:8px;background:var(--accent);color:#17221a;font-size:14px;font-weight:800}
+.multiplayer-primary:disabled{opacity:.5;cursor:default}
+.multiplayer-list-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.multiplayer-list-heading p{margin:0;font-size:14px;font-weight:800}
+.multiplayer-list-heading small{font-size:11px;color:var(--muted)}
+.multiplayer-room-list{display:grid;gap:10px}
+.multiplayer-room{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px;border:1px solid #3d5144;border-radius:9px;background:#14251e}
+.multiplayer-room>div:first-child{min-width:0;flex:1}
+.multiplayer-room strong,.multiplayer-room small{display:block;overflow-wrap:anywhere}
+.multiplayer-room small{margin-top:4px;color:var(--muted);font-size:11px}
+.multiplayer-room label{width:100%}
+.multiplayer-room button{flex-shrink:0}
+.multiplayer-players{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.multiplayer-players li{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid #3d5144;border-radius:8px;color:#ecf4e9}
+.multiplayer-players li span{flex:0 0 26px;border-radius:50%}
+.multiplayer-players li strong{flex:1;font-size:13px}
+.multiplayer-players li small{font-size:11px;color:var(--muted)}
+.multiplayer-leave{justify-self:start}
+.multiplayer-error{margin:12px 0 0;color:#ffbdb9;font-size:12px;line-height:1.4}
 .mesa-choice,.multiplayer-choice{opacity:.62}
 .mesa-choice .game-choice-icon,.multiplayer-choice .game-choice-icon{background:#23372d;color:#d9e3d7}
 .mesa-choice small,.multiplayer-choice small{text-transform:uppercase;letter-spacing:1px;color:#c6dc82}
@@ -445,3 +472,26 @@ button.install-card:hover{border-style:solid;border-color:var(--accent);backgrou
 .game-shell .table-surface .table-stage .bot-seat.deciding[data-hand-status=active]{border-color:#a5e9bd;background:radial-gradient(ellipse at center,#a9f4c243 0%,#6ccb8f1c 60%,transparent 100%),linear-gradient(145deg,#173f2c,#102b21);box-shadow:inset 0 0 18px #aeffd039,0 0 0 1px #9de9b068,0 0 16px #78d99d55}
 .game-shell .table-surface .player-dock.deciding .player-row{border-color:#a5e9bd;outline:1px solid #5cdb9577;outline-offset:0;background:radial-gradient(ellipse at center,#a9f4c22e 0%,#5bad7e12 65%,transparent 100%),#102c23f2;box-shadow:inset 0 0 14px #aeffd025,0 0 0 1px #9de9b04a,0 4px 13px #0008}
 .game-shell .table-surface .player-dock.deciding .private-slots{filter:drop-shadow(0 0 2px #dbf48c55)}
+/* Extras de la sala: contenidos en su propio panel, sin tocar la mesa individual. */
+.multiplayer-panel select{display:block;width:100%;min-height:44px;margin-top:7px;padding:0 11px;border:1px solid var(--line);border-radius:7px;background:#14251e;color:#f3f5eb;font-size:16px}
+.multiplayer-speed{display:flex;flex-wrap:wrap;gap:10px;margin:0;padding:12px;border:1px solid var(--line);border-radius:8px}
+.multiplayer-speed legend{padding:0 5px;font-size:13px}
+.multiplayer-speed label{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.multiplayer-invite{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:9px;padding:10px;border:1px solid #4e725b;border-radius:9px;background:#112a20}
+.multiplayer-invite strong{margin-left:6px;color:#e5f9a7;font-size:18px;letter-spacing:.12em}
+.multiplayer-players .connection-connected{color:#a4f2b8}
+.multiplayer-players .connection-reconnecting{color:#f1d888}
+.multiplayer-players .connection-disconnected{color:#f5a1a1}
+.multiplayer-chat-trigger{justify-self:start}
+.multiplayer-chat-backdrop{position:fixed;inset:0;z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:12px;background:#07171055}
+.multiplayer-chat{display:flex;flex-direction:column;width:min(100%,560px);height:min(80dvh,700px);min-height:260px;border:1px solid #70947b;border-radius:16px;background:#10251fdb;box-shadow:0 20px 60px #0009;color:#f5f8ef;backdrop-filter:blur(7px)}
+.multiplayer-chat header{display:flex;align-items:center;justify-content:space-between;min-height:48px;padding:8px 15px;border-bottom:1px solid #ffffff26}
+.multiplayer-chat header button{border:0;background:none;color:#fff;font-size:28px;line-height:1}
+.multiplayer-chat-messages{flex:1;min-height:0;overflow-y:auto;padding:12px 15px;overflow-wrap:anywhere}
+.multiplayer-chat-messages p{margin:0 0 10px;font-size:14px;line-height:1.4}
+.multiplayer-chat-messages strong{margin-right:6px;color:#b8edc1}
+.multiplayer-chat form{display:flex;gap:8px;padding:10px;border-top:1px solid #ffffff26}
+.multiplayer-chat form input{flex:1;min-width:0;min-height:44px;padding:0 10px;border:1px solid #547763;border-radius:8px;background:#172f27;color:#fff;font-size:16px}
+.multiplayer-chat form button{min-height:44px;padding:0 12px;border:0;border-radius:8px;background:#b8eb97;color:#14251e;font-weight:800}
+.multiplayer-chat form button:disabled{opacity:.5}
+.multiplayer-chat-notice{margin:0;padding:4px 15px;color:#f1d888;font-size:12px}

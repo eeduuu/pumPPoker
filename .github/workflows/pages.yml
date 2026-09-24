@@ -34,6 +34,8 @@ jobs:
         run: npm test
       - name: Crear versión pública
         run: npm run build
+        env:
+          VITE_MULTIPLAYER_API_URL: ${{ vars.MULTIPLAYER_API_URL || 'https://pumpoker-texas-multiplayer.edu-pampaa.workers.dev' }}
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v5
       - name: Preparar archivos
