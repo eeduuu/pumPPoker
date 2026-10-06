@@ -20,6 +20,7 @@ type FeedbackContextValue = {
   settings: FeedbackSettings;
   setPreference: (key: BooleanPreference, enabled: boolean) => void;
   setVolume: (key: VolumePreference, volume: number) => void;
+  skipMusic: (direction: -1 | 1) => void;
   feedback: (kind: FeedbackKind) => void;
   haptic: (event: HapticEvent) => HapticReport;
 };
@@ -72,10 +73,13 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       else engineRef.current?.resumeMusic();
     };
     const onInteraction = () => {
-      if (!settingsRef.current.music) return;
+      if (!settingsRef.current.music && !settingsRef.current.effects) return;
       const audio = engine();
-      audio.setMusic(true, settingsRef.current.musicVolume);
-      audio.unlockMusic();
+      if (settingsRef.current.effects) audio.unlockEffects();
+      if (settingsRef.current.music) {
+        audio.setMusic(true, settingsRef.current.musicVolume);
+        audio.unlockMusic();
+      }
     };
     document.addEventListener('visibilitychange', onVisibility);
     document.addEventListener('pointerdown', onInteraction);
@@ -125,7 +129,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     if (key === 'musicVolume') engineRef.current?.setMusicVolume(next);
   }, []);
 
-  return <FeedbackContext.Provider value={{ settings, setPreference, setVolume, feedback, haptic }}>{children}</FeedbackContext.Provider>;
+  const skipMusic = useCallback((direction: -1 | 1) => {
+    if (settingsRef.current.music) engine().skipMusic(direction);
+  }, [engine]);
+
+  return <FeedbackContext.Provider value={{ settings, setPreference, setVolume, skipMusic, feedback, haptic }}>{children}</FeedbackContext.Provider>;
 }
 
 export function useFeedback() {
@@ -135,7 +143,7 @@ export function useFeedback() {
 }
 
 export function AudioPreferences({ onLeave }: { onLeave?: () => void } = {}) {
-  const { settings, setPreference, setVolume, feedback, haptic } = useFeedback();
+  const { settings, setPreference, setVolume, skipMusic, feedback, haptic } = useFeedback();
   const [open, setOpen] = useState(false);
   const [vibrationReport, setVibrationReport] = useState<HapticReport | null>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -170,7 +178,10 @@ export function AudioPreferences({ onLeave }: { onLeave?: () => void } = {}) {
         <button className="preference-toggle" type="button" role="switch" aria-checked={settings[key]} onClick={() => setPreference(key, !settings[key])}>
           <span className="preference-label"><i aria-hidden="true">{icon}</i>{label}</span><span className={'preference-switch '+(settings[key] ? 'on' : '')} aria-hidden="true"><i/></span>
         </button>
-        <div className="preference-volume-line"><label htmlFor={`${key}-volume`}>Volumen</label><output htmlFor={`${key}-volume`}>{settings[volume]}%</output></div>
+        <div className="preference-volume-line"><label htmlFor={`${key}-volume`}>Volumen</label>{key === 'music' && <div className="music-track-controls" role="group" aria-label="Cambiar canción">
+          <button type="button" aria-label="Canción anterior" title="Canción anterior" disabled={!settings.music || musicPlaylist.length === 0} onClick={() => skipMusic(-1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M19 5v14L8 12l11-7Z" fill="currentColor"/></svg></button>
+          <button type="button" aria-label="Canción siguiente" title="Canción siguiente" disabled={!settings.music || musicPlaylist.length === 0} onClick={() => skipMusic(1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/><path d="M5 5v14l11-7L5 5Z" fill="currentColor"/></svg></button>
+        </div>}<output htmlFor={`${key}-volume`}>{settings[volume]}%</output></div>
         <input id={`${key}-volume`} type="range" min="0" max="100" step="1" value={settings[volume]} aria-label={`Volumen de ${label.toLowerCase()}`} onChange={event => setVolume(volume, Number(event.target.value))} onPointerUp={() => { if (key === 'effects') feedback('navigate'); }} onKeyUp={() => { if (key === 'effects') feedback('navigate'); }}/>
       </div>)}
       <div className="audio-preference vibration-preference">

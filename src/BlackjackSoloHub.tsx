@@ -185,8 +185,8 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
     <header><div className="brand"><BrandLogo/></div><div className="header-controls"><button className="games-back" type="button" onClick={leave}>← Modos</button><AudioPreferences/></div></header>
     <section className="bj-setup" aria-labelledby="bj-setup-title"><p className="bj-kicker">BLACKJACK · 1 JUGADOR</p><h1 id="bj-setup-title">Tu mesa, tus fichas.</h1><p>Juega contra el crupier. Los bots comparten zapato contigo, pero cada asiento decide por sí mismo.</p>
       <label>Fichas de entrada<select value={buyIn} onChange={event => setBuyIn(Number(event.target.value))}><option value="100">100 fichas</option><option value="250">250 fichas</option><option value="500">500 fichas</option><option value="1000">1.000 fichas</option></select></label>
-      <label>Otros asientos<select value={botCount} onChange={event => setBotCount(Number(event.target.value))}><option value="0">Solo yo y el crupier</option><option value="1">1 bot y yo</option><option value="2">2 bots y yo</option></select></label>
-      <div className="bj-rule-note">6 barajas · Crupier se planta en 17 · Blackjack paga 3:2 · Apuesta mínima: 5 fichas. Sin dinero real.</div>
+      <label>Otros asientos<select value={botCount} onChange={event => setBotCount(Number(event.target.value))}><option value="0">0 bots</option><option value="1">1 bot</option><option value="2">2 bots</option></select></label>
+      <div className="bj-rule-note">6 barajas · Crupier se planta en 17 · Blackjack paga 3:2 · Puedes pedir tras separar ases · Apuesta mínima: 5 fichas. Sin dinero real.</div>
       {error && <p role="alert" className="bj-error">{error}</p>}
       <button className="bj-primary bj-create" type="button" onClick={createTable}>Entrar a la mesa <span aria-hidden="true">→</span></button>
     </section>
@@ -198,7 +198,8 @@ export function BlackjackSoloHub({ onBack, onLobby, playerName }: { onBack: () =
   const bots = shown.seats.filter(seat => seat.bot);
   const controls = playback ? [] : availableActions(game);
   const maxBet = Math.floor(game.seats[0].bankroll / 5) * 5;
-  const dealerShown = shown.revealDealer ? scoreLabel(shown.dealer) : shown.dealer[0]?.rank === 14 ? '11' : String(Math.min(shown.dealer[0]?.rank || 0, 10));
+  const dealerFinished = game.phase === 'result' && shown.dealer.length === game.dealer.length;
+  const dealerShown = shown.revealDealer ? scoreLabel(shown.dealer, dealerFinished) : shown.dealer[0]?.rank === 14 ? '11' : String(Math.min(shown.dealer[0]?.rank || 0, 10));
   const bustOut = player.bankroll < shown.minBet && shown.phase === 'result';
   const outcomes = player.hands.map(hand => hand.outcome);
   const resultTitle = outcomes.some(outcome => outcome === 'win' || outcome === 'blackjack') ? 'Ganaste' : outcomes.some(outcome => outcome === 'push') ? 'Empate' : outcomes.length ? 'Perdiste' : 'Mano terminada';

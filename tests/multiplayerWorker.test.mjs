@@ -27,6 +27,7 @@ function environment() {
   const rooms = new Map();
   env.previewRooms = rooms;
   const directory = new TexasDirectory(context(), env);
+  env.previewDirectory = directory;
   env.TEXAS_DIRECTORY = { idFromName: value => value, get: () => ({ fetch: request => directory.fetch(request) }) };
   env.TEXAS_ROOMS = { idFromName: value => value, get: id => ({ fetch: request => {
     if (!rooms.has(id)) rooms.set(id, new TexasRoom(context(), env));
@@ -101,6 +102,46 @@ test('Una mesa con bots comienza de verdad y continúa visible para personas que
   assert.equal(invalid.status, 400);
 });
 
+test('Una mesa pública vuelve a Buscar mesa si el índice perdió su entrada; la privada conserva su acceso', async () => {
+  const env = environment();
+  const publicHost = await (await call(env, '/api/rooms', 'POST', { name: 'Visible', maxPlayers: 2, playerName: 'Ana' })).json();
+  const privateHost = await (await call(env, '/api/rooms', 'POST', {
+    name: 'Con clave', maxPlayers: 2, isPrivate: true, password: 'secreto7', playerName: 'Eva',
+  })).json();
+  assert.equal((await (await call(env, '/api/rooms')).json()).length, 2);
+  await env.previewDirectory.ctx.storage.put('rooms', {});
+  assert.deepEqual(await (await call(env, '/api/rooms')).json(), []);
+  const guest = await call(env, `/api/rooms/${publicHost.room.id}/join`, 'POST', { playerName: 'Beto' });
+  assert.equal(guest.status, 200, 'El enlace sigue dando acceso directo a la mesa.');
+  const listed = await (await call(env, '/api/rooms')).json();
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].id, publicHost.room.id);
+  assert.equal(listed[0].playerCount, 2);
+  assert.equal(listed[0].isPrivate, false);
+  assert.equal((await call(env, `/api/rooms/${privateHost.room.id}/join`, 'POST', { playerName: 'Mía', password: 'mal' })).status, 403);
+  assert.equal((await call(env, `/api/rooms/${privateHost.room.id}/join`, 'POST', { playerName: 'Mía', password: 'secreto7' })).status, 200);
+  assert.equal((await (await call(env, '/api/rooms')).json()).find(room => room.id === privateHost.room.id)?.isPrivate, true);
+});
+
+test('Si falla el índice, su reintento a 10 segundos no queda sustituido por el turno de 30 segundos', async () => {
+  const env = environment();
+  const host = await (await call(env, '/api/rooms', 'POST', { maxPlayers: 2, turnSeconds: 30, playerName: 'Ana' })).json();
+  const instance = env.previewRooms.get(host.room.id);
+  const alarms = [];
+  instance.ctx.storage.setAlarm = async time => { alarms.push(time); };
+  const normalDirectory = env.TEXAS_DIRECTORY.get;
+  env.TEXAS_DIRECTORY.get = () => ({ fetch: async request => {
+    if (new URL(request.url).pathname === '/update') throw new Error('Índice temporalmente inaccesible');
+    return normalDirectory().fetch(request);
+  } });
+  const start = Date.now();
+  assert.equal((await call(env, `/api/rooms/${host.room.id}/join`, 'POST', { playerName: 'Beto' })).status, 200);
+  assert.ok(alarms.at(-1) >= start + 9_000 && alarms.at(-1) <= Date.now() + 10_500);
+  env.TEXAS_DIRECTORY.get = normalDirectory;
+  await instance.alarm();
+  assert.equal((await (await call(env, '/api/rooms')).json())[0].playerCount, 2);
+});
+
 test('La votación de revancha se publica por el Worker y espera a todas las personas', async () => {
   const env = environment();
   const created = await (await call(env, '/api/rooms', 'POST', { name: 'Torneo', maxPlayers: 2, mode: 'tournament', playerName: 'Ana' })).json();
@@ -168,6 +209,55 @@ test('Un invitado a partida normal no hereda cartas ni fichas de un asiento aban
   assert.equal(seat.stack + seat.committed, 10_000);
 });
 
+test('Salir el anfitrión no expulsa al invitado y le transfiere el control de la mesa', async () => {
+  const env = environment();
+  const host = await (await call(env, '/api/rooms', 'POST', { mode: 'tournament', maxPlayers: 2, botCount: 1, playerName: 'Ana' })).json();
+  const id = host.room.id;
+  const guest = await (await call(env, `/api/rooms/${id}/join`, 'POST', { playerName: 'Beto' })).json();
+  assert.equal((await call(env, `/api/rooms/${id}/leave`, 'DELETE', undefined, host.token)).status, 200);
+  const remaining = await (await call(env, `/api/rooms/${id}/snapshot`, 'GET', undefined, guest.token)).json();
+  assert.equal(remaining.status, 'waiting');
+  assert.equal(remaining.hostId, guest.playerId);
+  assert.equal(remaining.players.length, 1);
+  assert.equal((await call(env, `/api/rooms/${id}/start`, 'POST', {}, guest.token)).status, 200);
+  assert.equal((await call(env, `/api/rooms/${id}/leave`, 'DELETE', undefined, guest.token)).status, 200);
+  assert.deepEqual(await (await call(env, '/api/rooms')).json(), []);
+});
+
+test('La partida normal sigue abierta para el invitado cuando sale el creador', async () => {
+  const env = environment();
+  const host = await (await call(env, '/api/rooms', 'POST', { maxPlayers: 2, playerName: 'Ana' })).json();
+  const id = host.room.id;
+  const guest = await (await call(env, `/api/rooms/${id}/join`, 'POST', { playerName: 'Beto' })).json();
+  assert.equal((await call(env, `/api/rooms/${id}/leave`, 'DELETE', undefined, host.token)).status, 200);
+  const remaining = await (await call(env, `/api/rooms/${id}/snapshot`, 'GET', undefined, guest.token)).json();
+  assert.equal(remaining.status, 'playing');
+  assert.equal(remaining.hostId, guest.playerId);
+  assert.equal(remaining.players.length, 1);
+  assert.equal((await (await call(env, '/api/rooms')).json())[0].playerCount, 1);
+  assert.equal((await call(env, `/api/rooms/${id}/leave`, 'DELETE', undefined, guest.token)).status, 200);
+});
+
+test('Al cerrar la última plaza, el espectador recibe cierre y no queda atrapado en la mesa', async () => {
+  const env = environment();
+  const host = await (await call(env, '/api/rooms', 'POST', { mode: 'tournament', maxPlayers: 2, playerName: 'Ana' })).json();
+  const id = host.room.id;
+  const spectator = await (await call(env, `/api/rooms/${id}/spectate`, 'POST', { playerName: 'Beto' })).json();
+  const instance = env.previewRooms.get(id);
+  const received = [];
+  const closed = [];
+  instance.ctx.getWebSockets = () => [{
+    deserializeAttachment: () => ({ playerId: spectator.playerId }),
+    send: text => received.push(JSON.parse(text)),
+    close: (code, reason) => closed.push({ code, reason }),
+  }];
+  assert.equal((await call(env, `/api/rooms/${id}/leave`, 'DELETE', undefined, host.token)).status, 200);
+  assert.equal((await instance.load()).status, 'closed');
+  assert.equal(received.at(-1).room.status, 'closed');
+  assert.deepEqual(closed.at(-1), { code: 4000, reason: 'Mesa cerrada' });
+  assert.deepEqual(await (await call(env, '/api/rooms')).json(), []);
+});
+
 test('Una sala privada también exige contraseña para mirar y el chat del espectador es efímero', async () => {
   const env = environment();
   const host = await (await call(env, '/api/rooms', 'POST', { mode: 'tournament', maxPlayers: 2, botCount: 1, isPrivate: true, password: 'secreto7', playerName: 'Ana' })).json();
@@ -231,6 +321,62 @@ test('Dos conexiones reciben la misma mesa, pero nunca las cartas privadas del o
   assert.equal(a.seats.find(seat => seat.id === guest.playerId).cards, null);
   assert.equal(b.seats.find(seat => seat.id === guest.playerId).cards.length, 2);
   assert.equal(b.seats.find(seat => seat.id === host.playerId).cards, null);
+});
+
+test('El Worker anuncia espera y descanso a dos jugadores y un espectador, y reconectar no crea una mano extra', async () => {
+  const env = environment();
+  const host = await (await call(env, '/api/rooms', 'POST', {
+    mode: 'tournament', maxPlayers: 2, playerName: 'Ana', minutes: 1,
+    breaks: true, every: 1, rest: 1,
+  })).json();
+  const id = host.room.id;
+  const guest = await (await call(env, `/api/rooms/${id}/join`, 'POST', { playerName: 'Beto' })).json();
+  await call(env, `/api/rooms/${id}/start`, 'POST', {}, host.token);
+  const watcher = await (await call(env, `/api/rooms/${id}/spectate`, 'POST', { playerName: 'Cris' })).json();
+  const instance = env.previewRooms.get(id);
+  const messages = new Map([[host.playerId, []], [guest.playerId, []], [watcher.playerId, []]]);
+  instance.ctx.getWebSockets = () => [...messages].map(([playerId, inbox]) => ({
+    deserializeAttachment: () => ({ playerId }), send: text => inbox.push(JSON.parse(text)),
+  }));
+  const current = await instance.load();
+  const hand = current.game.number;
+  current.game.phase = 'result';
+  current.game.deadline = Date.now() - 1;
+  current.clockStartedAt = Date.now() - 52_000;
+  await instance.ctx.storage.put('room', current);
+  await instance.alarm();
+  for (const inbox of messages.values()) {
+    const game = inbox.at(-1).room.game;
+    assert.equal(game.number, hand);
+    assert.equal(game.clock.waitingForBreak, true);
+    assert.ok(game.clock.serverNow > 0);
+  }
+  const reconnected = await (await call(env, `/api/rooms/${id}/snapshot`, 'GET', undefined, guest.token)).json();
+  assert.equal(reconnected.game.number, hand);
+  assert.equal(reconnected.game.clock.waitingForBreak, true);
+  assert.equal(reconnected.game.deadline, messages.get(host.playerId).at(-1).room.game.deadline);
+
+  const boundary = await instance.load();
+  boundary.clockStartedAt = Date.now() - 60_001;
+  boundary.game.deadline = Date.now() - 1;
+  await instance.ctx.storage.put('room', boundary);
+  await instance.alarm();
+  for (const inbox of messages.values()) {
+    const game = inbox.at(-1).room.game;
+    assert.equal(game.number, hand);
+    assert.equal(game.clock.waitingForBreak, false);
+    assert.ok(game.clock.breakUntil > game.clock.serverNow);
+  }
+  const resumed = await instance.load();
+  resumed.breakUntil = Date.now() - 1;
+  resumed.game.deadline = Date.now() - 1;
+  await instance.ctx.storage.put('room', resumed);
+  await instance.alarm();
+  for (const inbox of messages.values()) {
+    const game = inbox.at(-1).room.game;
+    assert.equal(game.number, hand + 1);
+    assert.equal(game.clock.breakUntil, null);
+  }
 });
 
 test('Chat limitado y efímero: se transmite sin guardarse en el estado de la mesa', async () => {

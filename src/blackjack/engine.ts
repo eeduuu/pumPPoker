@@ -158,8 +158,8 @@ function applyAction(game: BlackjackGame, action: BlackjackAction) {
     hand.splitAces = second.splitAces;
     hand.cards.push(draw(game));
     second.cards.push(draw(game));
-    if (hand.splitAces || total(hand.cards).value === 21) hand.done = true;
-    if (second.splitAces || total(second.cards).value === 21) second.done = true;
+    if (total(hand.cards).value === 21) hand.done = true;
+    if (total(second.cards).value === 21) second.done = true;
     seat.hands.push(second);
   }
 }

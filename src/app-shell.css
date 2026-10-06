@@ -24,6 +24,12 @@
 .preference-volume-line{display:flex;align-items:center;justify-content:space-between;margin:2px 1px 0;color:#bdcec0;font-size:12px}
 .preference-volume-line label{font-size:12px;color:inherit}
 .preference-volume-line output{color:#e8f9ad;font-weight:800;font-variant-numeric:tabular-nums}
+.music-track-controls{display:flex;gap:5px;margin-left:auto;margin-right:9px}
+.music-track-controls button{display:grid;place-items:center;width:31px;height:29px;padding:4px;border:1px solid #587562;border-radius:7px;background:#20382b;color:#ddf4b5;cursor:pointer}
+.music-track-controls button svg{width:17px;height:17px}
+.music-track-controls button:hover:not(:disabled){border-color:#b7dc8b;background:#2b4934}
+.music-track-controls button:focus-visible{outline:2px solid #d8f2a2;outline-offset:2px}
+.music-track-controls button:disabled{opacity:.4;cursor:default}
 .audio-settings-panel input[type=range]{display:block;width:100%;height:34px;min-height:34px;margin:0;accent-color:var(--accent);cursor:pointer;touch-action:pan-x}
 .preference-unavailable{padding:4px 7px;border:1px solid #526257;border-radius:7px;color:#c6d2c8;font-size:11px;font-weight:750;white-space:nowrap}
 .vibration-preference{padding-bottom:2px}
@@ -203,7 +209,7 @@ button.install-card:hover{border-style:solid;border-color:var(--accent);backgrou
  .game-choice-icon{width:48px;height:58px;font-size:27px}
  .game-choice strong{font-size:19px}
  .game-choice small{font-size:11px}
- .install-wrap{margin-top:11px}
+ .install-wrap{margin-top:16px}
  .install-card{min-height:58px}
  .equity-badge{padding:4px 8px;font-size:13px}
  .human-equity{margin-left:6px}
@@ -227,6 +233,7 @@ button.install-card:hover{border-style:solid;border-color:var(--accent);backgrou
  .game-choice{min-height:86px;padding:11px 14px}
  .game-choice-icon{width:41px;height:50px;font-size:24px}
  .game-choice small{margin-top:3px}
+ .install-wrap{margin-top:11px}
  .install-card{min-height:50px}
 }
 

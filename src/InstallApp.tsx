@@ -34,7 +34,7 @@ export function InstallApp() {
     setPrompt(null);
   };
 
-  if (installed) return <div className="install-card installed" aria-label="Aplicación instalada"><span aria-hidden="true">✓</span><strong>App instalada</strong></div>;
+  if (installed) return <div className="install-wrap"><div className="install-card installed" aria-label="Aplicación instalada"><span aria-hidden="true">✓</span><strong>App instalada</strong></div></div>;
   return <div className="install-wrap">
     <button className="install-card" type="button" onClick={install}><span aria-hidden="true">↓</span><span><strong>Instalar en el móvil</strong><small>Juega desde tu icono, a pantalla completa</small></span></button>
     {help && <p className="install-help" role="status">{isIos ? 'En Safari: Compartir → Añadir a pantalla de inicio.' : 'Abre el menú del navegador y elige “Instalar aplicación” o “Añadir a pantalla de inicio”.'}</p>}

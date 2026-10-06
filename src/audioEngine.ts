@@ -47,6 +47,8 @@ export class GameAudio {
     return this.context;
   }
 
+  unlockEffects(): void { this.getContext(); }
+
   playEffect(kind: EffectKind, volume: number): void {
     if (volume <= 0) return;
     const context = this.getContext();
@@ -201,6 +203,17 @@ export class GameAudio {
 
   unlockMusic(): void {
     this.musicUnlocked = true;
+    this.resumeMusic();
+  }
+
+  skipMusic(direction: -1 | 1): void {
+    if (!this.musicEnabled || !this.tracks.length) return;
+    const player = this.ensurePlayer();
+    if (!player) return;
+    this.songIndex = (this.songIndex + direction + this.tracks.length) % this.tracks.length;
+    const nextTrack = this.tracks[this.songIndex];
+    if (player.src !== nextTrack) player.src = nextTrack;
+    else player.currentTime = 0;
     this.resumeMusic();
   }
 

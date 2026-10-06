@@ -392,6 +392,55 @@ test('Una canción se repite y varias avanzan y vuelven a empezar', () => {
   }
 });
 
+test('Los controles anterior y siguiente conservan volumen y estado, incluso con una sola canción', async () => {
+  const previous = { Audio: globalThis.Audio, window: globalThis.window, document: globalThis.document };
+  const players = [];
+  class FakeAudio {
+    constructor(src) { this.src = src; this.volume = 1; this.currentTime = 12; this.plays = 0; players.push(this); }
+    addEventListener() {}
+    play() { this.plays++; return Promise.resolve(); }
+    pause() {}
+  }
+  globalThis.Audio = FakeAudio;
+  globalThis.window = { AudioContext: undefined };
+  globalThis.document = { hidden: false };
+  try {
+    const audio = new GameAudio(['/uno.mp3', '/dos.mp3', '/tres.mp3']);
+    audio.skipMusic(1);
+    assert.equal(players.length, 0, 'La música apagada no crea un reproductor.');
+    audio.setMusic(true, 40);
+    audio.unlockMusic();
+    audio.skipMusic(-1);
+    assert.equal(players[0].src, '/tres.mp3');
+    assert.equal(players[0].volume, .4);
+    audio.skipMusic(1);
+    assert.equal(players[0].src, '/uno.mp3');
+    audio.skipMusic(1);
+    assert.equal(players[0].src, '/dos.mp3');
+    audio.setMusic(false, 40);
+    audio.skipMusic(1);
+    assert.equal(players[0].src, '/dos.mp3', 'Al apagarla los controles no cambian la canción.');
+    audio.dispose();
+
+    const single = new GameAudio(['/sola.mp3']);
+    single.setMusic(true, 75);
+    single.unlockMusic();
+    players[1].currentTime = 24;
+    single.skipMusic(1);
+    assert.equal(players[1].src, '/sola.mp3');
+    assert.equal(players[1].currentTime, 0);
+    single.dispose();
+  } finally {
+    globalThis.Audio = previous.Audio;
+    globalThis.window = previous.window;
+    globalThis.document = previous.document;
+  }
+  const controls = await readFile(new URL('../src/feedback.tsx', import.meta.url), 'utf8');
+  assert.match(controls, /aria-label="Canción anterior"/);
+  assert.match(controls, /aria-label="Canción siguiente"/);
+  assert.match(controls, /disabled=\{!settings\.music \|\| musicPlaylist\.length === 0\}/);
+});
+
 test('El menú usa engranaje, dos volúmenes y el nombre Efectos', async () => {
   const source = await readFile(new URL('../src/feedback.tsx', import.meta.url), 'utf8');
   assert.match(source, /⚙/);
@@ -468,7 +517,7 @@ test('Blackjack permite elegir modo y jugar en mesa propia sin activar multijuga
     readFile(new URL('../src/main.tsx', import.meta.url), 'utf8'),
   ]);
   assert.match(hub, /<button className="game-choice blackjack-choice" type="button" disabled=\{!nameReady\} onClick=\{enterBlackjack\}>/);
-  assert.match(hub, /<strong>Blackjack<\/strong><small>Juega contra la banca<\/small>/);
+  assert.match(hub, /<strong>Blackjack<\/strong><small>Juega contra la banca o contra otras personas<\/small>/);
   assert.match(modes, /<strong>Multijugador<\/strong><small>Próximamente<\/small>/);
   assert.match(modes, /className="game-choice multiplayer-choice" aria-disabled="true"/);
   assert.match(modes, /<strong>1 jugador<\/strong><small>Juega contra la banca<\/small>/);
@@ -510,6 +559,18 @@ test('La pantalla inicial abre directamente Texas y Blackjack, con nombre e inst
   assert.match(app, /setTableHand\(null\); setStep\(0\);/, 'Abandonar mesa conserva el regreso a normal o torneo');
 });
 
+test('La app instalada conserva separación del juego y la mesa online nombra cada fase', async () => {
+  const [install, css, online] = await Promise.all([
+    readFile(new URL('../src/InstallApp.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/app-shell.css', import.meta.url), 'utf8'),
+    readFile(new URL('../src/TexasOnlineTable.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(install, /if \(installed\) return <div className="install-wrap">/);
+  assert.match(css, /\.install-wrap\{margin-top:16px\}/);
+  assert.match(online, /'Repartiendo flop…', 'Repartiendo turn…', 'Repartiendo river…', 'Resolviendo la mano…'/);
+  assert.doesNotMatch(online, /Preparando siguiente calle/);
+});
+
 test('La sala de espera prioriza empezar torneo y la mesa online vibra solo por eventos', async () => {
   const [lobby, online] = await Promise.all([
     readFile(new URL('../src/TexasMultiplayerHub.tsx', import.meta.url), 'utf8'),
@@ -522,6 +583,33 @@ test('La sala de espera prioriza empezar torneo y la mesa online vibra solo por 
   assert.match(online, /suppressTurnVibration\.current = true/);
   assert.match(online, /haptic\('ELIMINATED'\)/);
   assert.doesNotMatch(online, /haptic\('(CHECK|CALL|RAISE|ALL_IN)'\)/);
+});
+
+test('El confeti online suena una vez por final de torneo y no al reconectar', async () => {
+  const online = await readFile(new URL('../src/TexasOnlineTable.tsx', import.meta.url), 'utf8');
+  assert.match(online, /winnerReady !== resultKey \|\| !visible/);
+  assert.match(online, /const key = `pumpoker:online-win:\$\{room\.id\}:\$\{resultKey\}`/);
+  assert.match(online, /announcedWinners\.current\.has\(key\)/);
+  assert.match(online, /sessionStorage\.getItem\(key\)/);
+  assert.match(online, /feedback\('win'\)/);
+});
+
+test('Salir de una mesa desaparecida libera la sesión local sin ocultar errores de red', async () => {
+  const hub = await readFile(new URL('../src/TexasMultiplayerHub.tsx', import.meta.url), 'utf8');
+  const exit = hub.slice(hub.indexOf('const exitRoom = async () => {'), hub.indexOf('const sendChat ='));
+  assert.match(exit, /await leaveRoom\(session\);\s*clearLocalRoom\(\)/);
+  assert.match(exit, /\[401, 404, 410\]\.includes\(\(cause as \{ status\?: number \}\)\?\.status \|\| 0\)\) clearLocalRoom\(\)/);
+  assert.match(exit, /else setError\(message\(cause\)\)/);
+  assert.match(hub, /const clearLocalRoom = useCallback\(\(\) => \{\s*rememberRoomSession\(null\); setSession\(null\); setSnapshot\(null\); setChoice\(null\)/);
+  assert.match(hub, /data\.room\.status === 'closed'/);
+  assert.match(hub, /event\.code === 1008 \|\| event\.code === 4000/);
+});
+
+test('En el all-in online las cartas se presentan antes del resultado final', async () => {
+  const table = await readFile(new URL('../src/TexasOnlineTable.tsx', import.meta.url), 'utf8');
+  assert.match(table, /const revealPresentation = game\.phase === 'result' \|\| game\.runout/);
+  assert.match(table, /revealPresentation && seat\.cards && !eliminated \? <SeatReveal/);
+  assert.match(table, /revealPresentation \? ' reveal-active' : ''/);
 });
 
 test('Pedir carta mantiene las acciones visibles durante el reparto si el turno continúa', async () => {

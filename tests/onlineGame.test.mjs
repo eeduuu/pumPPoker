@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { beginHand, canBegin, applyPlayerAction, forfeitPlayer, advanceExpiredTurn, publicGame, voteRematch, resolveRematch, REMATCH_WAIT_MS, BUY_IN } from '../server/game.mjs';
 import { revealedEquityPercentages } from '../src/poker/equity.ts';
+import { onlineBreakMessage, serverAlignedTime } from '../src/multiplayer/breakStatus.ts';
 
 const player = (seat, id) => ({ seat, id, name: id, token: id });
 const room = (humans, bots = 0, maxPlayers = 2) => ({
@@ -71,6 +72,21 @@ test('Una persona que abandona se retira de su mano sin bloquear turnos ni conse
   assert.equal(publicGame(table, 'host').seats.some(seat => seat.id === 'guest'), false);
 });
 
+test('El ganador por retirada cobra sin enseñar sus cartas a rivales ni espectadores', () => {
+  const table = room([player(0, 'host'), player(1, 'guest')]);
+  beginHand(table);
+  const foldedSeat = table.game.betting.actor;
+  const foldedId = table.players.find(person => person.seat === foldedSeat).id;
+  const winnerId = table.players.find(person => person.seat !== foldedSeat).id;
+  applyPlayerAction(table, foldedId, 'fold');
+  assert.equal(table.game.phase, 'result');
+  assert.equal(table.game.betting.status, 'uncontested');
+  assert.ok(publicGame(table, foldedId).seats.find(seat => seat.id === winnerId).payout > 0);
+  assert.equal(publicGame(table, foldedId).seats.find(seat => seat.id === winnerId).cards, null);
+  assert.equal(publicGame(table, 'spectator').seats.find(seat => seat.id === winnerId).cards, null);
+  assert.equal(publicGame(table, winnerId).seats.find(seat => seat.id === winnerId).cards.length, 2);
+});
+
 test('La sala aplica fichas, ciegas y subida gradual al comenzar la mano siguiente', () => {
   const table = { ...room([player(0, 'host')], 1), chips: 5000, small: 25, big: 50, mode: 'normal', growing: true, minutes: 1 };
   beginHand(table);
@@ -102,6 +118,92 @@ test('El descanso espera al final de la mano y detiene el reloj antes del próxi
   assert.equal(table.breakUntil, 0);
 });
 
+test('Con menos de diez segundos para el descanso no se reparte otra mano', () => {
+  const table = { ...room([player(0, 'host')], 1), mode: 'tournament', growing: true, breaks: true, minutes: 1, every: 1, rest: 1 };
+  beginHand(table);
+  const now = Date.now();
+  table.game.phase = 'result';
+  table.game.deadline = now - 1;
+  table.clockStartedAt = now - 52_000;
+  assert.equal(advanceExpiredTurn(table, now), true);
+  assert.equal(table.game.number, 1);
+  assert.equal(table.game.waitingForBreak, true);
+  assert.equal(publicGame(table, 'host').clock.waitingForBreak, true);
+  assert.equal(table.game.deadline, now + 8_000);
+  assert.equal(advanceExpiredTurn(table, now + 7_999), false);
+  assert.equal(advanceExpiredTurn(table, now + 8_000), true);
+  assert.equal(table.game.number, 1);
+  assert.equal(table.game.waitingForBreak, false);
+  assert.equal(table.clockStartedAt, null);
+  assert.ok(table.breakUntil > now + 8_000);
+  advanceExpiredTurn(table, table.breakUntil + 1);
+  assert.equal(table.game.number, 2);
+  assert.equal(table.breakUntil, 0);
+});
+
+test('Dos personas y un espectador ven la misma espera, descanso y siguiente mano al reconectar', () => {
+  const table = { ...room([player(0, 'host'), player(1, 'guest')]), mode: 'tournament', growing: true, breaks: true, minutes: 1, every: 1, rest: 1 };
+  beginHand(table);
+  const hand = table.game.number;
+  const now = Date.now();
+  table.game.phase = 'result';
+  table.game.deadline = now - 1;
+  table.clockStartedAt = now - 52_000;
+  advanceExpiredTurn(table, now);
+  for (const viewer of ['host', 'guest', 'spectator']) {
+    const snapshot = publicGame(table, viewer);
+    assert.equal(snapshot.number, hand);
+    assert.equal(snapshot.clock.waitingForBreak, true);
+    assert.equal(onlineBreakMessage(snapshot.clock, now), 'Descanso en 0:08');
+  }
+  const reconnected = publicGame(table, 'guest');
+  assert.equal(reconnected.deadline, table.game.deadline);
+  assert.equal(advanceExpiredTurn(table, now + 7_999), false);
+  assert.equal(advanceExpiredTurn(table, now + 8_000), true);
+  for (const viewer of ['host', 'guest', 'spectator']) {
+    const snapshot = publicGame(table, viewer);
+    assert.equal(snapshot.number, hand);
+    assert.equal(snapshot.clock.waitingForBreak, false);
+    assert.match(onlineBreakMessage(snapshot.clock, now + 8_000), /^Descanso · /);
+    assert.equal(snapshot.clock.breakUntil, table.breakUntil);
+  }
+  advanceExpiredTurn(table, table.breakUntil + 1);
+  assert.equal(table.game.number, hand + 1);
+});
+
+test('El texto del descanso usa el tiempo del servidor y no depende del reloj del dispositivo', () => {
+  const clock = { enabled: true, duration: 60_000, elapsed: 0, startedAt: 1_000, breakLimit: 60_000, breakUntil: null, waitingForBreak: true };
+  assert.equal(onlineBreakMessage(clock, 53_000), 'Descanso en 0:08');
+  const fastPhone = serverAlignedTime(53_000, 1_000_000, 1_005_000);
+  const slowPhone = serverAlignedTime(53_000, -1_000_000, -995_000);
+  assert.equal(fastPhone, slowPhone);
+  assert.equal(onlineBreakMessage(clock, fastPhone), 'Descanso en 0:03');
+  clock.waitingForBreak = false;
+  clock.breakUntil = 120_000;
+  assert.equal(onlineBreakMessage(clock, 60_000), 'Descanso · 1:00');
+});
+
+test('A diez segundos exactos todavía puede empezar una mano; sin descansos no se espera', () => {
+  const now = Date.now();
+  const table = { ...room([player(0, 'host')], 1), mode: 'tournament', breaks: true, minutes: 1, every: 1 };
+  beginHand(table);
+  table.game.phase = 'result';
+  table.game.deadline = now - 1;
+  table.clockStartedAt = now - 50_000;
+  advanceExpiredTurn(table, now);
+  assert.equal(table.game.number, 2);
+  assert.equal(table.breakUntil || 0, 0);
+
+  const noBreak = { ...room([player(0, 'host')], 1), mode: 'tournament', breaks: false, minutes: 1, every: 1 };
+  beginHand(noBreak);
+  noBreak.game.phase = 'result';
+  noBreak.game.deadline = now - 1;
+  noBreak.clockStartedAt = now - 52_000;
+  advanceExpiredTurn(noBreak, now);
+  assert.equal(noBreak.game.number, 2);
+  assert.equal(noBreak.game.waitingForBreak, false);
+});
+
 test('El tiempo agotado retira a la persona incluso cuando podía pasar gratis', () => {
   const table = { ...room([player(0, 'host'), player(1, 'guest')]), mode: 'tournament' };
   beginHand(table);
@@ -118,7 +220,10 @@ test('Un all-in revela flop, turn y river por separado antes del cobro y la elim
   const table = { ...room([player(0, 'host'), player(1, 'guest')]), mode: 'tournament', chips: 100, small: 5, big: 10 };
   beginHand(table);
   let actor = table.game.betting.actor;
+  const firstActor = table.players[actor].id;
   applyPlayerAction(table, table.players[actor].id, 'raise', table.game.betting.players[actor].stack);
+  assert.equal(publicGame(table, firstActor).runout, false, 'La subida inicial no revela cartas mientras queda una respuesta pendiente.');
+  assert.equal(publicGame(table, firstActor).seats.find(seat => seat.id !== firstActor).cards, null);
   actor = table.game.betting.actor;
   applyPlayerAction(table, table.players[actor].id, 'call');
   assert.equal(table.game.phase, 'playing');
@@ -127,6 +232,7 @@ test('Un all-in revela flop, turn y river por separado antes del cobro y la elim
   assert.equal(view.board.length, 0);
   assert.equal(view.runout, true);
   assert.equal(view.seats.find(seat => seat.id === 'guest').cards.length, 2);
+  assert.equal(publicGame(table, 'spectator').seats.every(seat => seat.cards?.length === 2), true);
   assert.equal(revealedEquityPercentages(view.seats.map(seat => seat.cards), view.board, 100).reduce((sum, value) => sum + value), 100);
   assert.deepEqual(table.eliminated || [], []);
   for (const count of [3, 4, 5]) {
@@ -142,6 +248,7 @@ test('Un all-in revela flop, turn y river por separado antes del cobro y la elim
   advanceExpiredTurn(table, Number.MAX_SAFE_INTEGER);
   assert.equal(table.game.phase, 'result');
   assert.equal(table.game.pendingStreet, false);
+  assert.equal(publicGame(table, 'host').seats.find(seat => seat.id === 'guest').cards.length, 2);
   assert.equal(table.game.result.payouts.reduce((sum, payout) => sum + payout, 0), 200);
   assert.equal(table.eliminated?.length || 0, table.game.result.payouts.filter(payout => payout === 0).length);
 });

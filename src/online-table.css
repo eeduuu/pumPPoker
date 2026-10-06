@@ -28,6 +28,7 @@
 .online-game-shell .player-dock .human-roles{display:inline-flex;vertical-align:middle}
 .online-game-shell .player-dock .human-roles .dealer-chip,.online-game-shell .player-dock .human-roles .blind-chip{width:17px;height:17px;font-size:9px;line-height:1}
 .online-game-shell .online-rematch-countdown{max-width:350px;margin:14px auto 0;padding:8px 12px;border:1px solid #79b58b88;border-radius:10px;background:#10271fe0;color:#eaf9dc;font-size:clamp(13px,3.3vw,16px);font-weight:750;line-height:1.35;text-shadow:0 1px 3px #071b12}
+.online-game-shell .online-final-hand-reason{max-width:350px;margin:7px auto 0;color:#eaf9dc;font-size:clamp(12px,3vw,15px);line-height:1.3;text-align:center}
 .online-game-shell .victory-actions button:disabled{opacity:.68;cursor:default}
 .online-chat-notice{position:absolute;z-index:6;right:12px;bottom:80px;padding:5px 8px;border:1px solid #68846c;border-radius:8px;background:#10271fee;color:#e6f0dd;font-size:11px}
 .online-spectator-label{flex:none;align-self:center;margin:0 0 2px;padding:7px 12px;border:1px solid #6c9879;border-radius:9px;background:#122b22e6;color:#e0f0db;font-size:12px;text-align:center}

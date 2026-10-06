@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanName, firstFreeSeat, passwordDigest, publicRoom, publicSnapshot, sameDigest, validateRoomInput } from '../server/room-core.mjs';
+import { orderRoomListings } from '../src/multiplayer/roomListing.ts';
+
+test('Un código de invitación destaca su mesa sin ocultar las demás mesas públicas', () => {
+  const rooms = [{ code: 'PUBLIC0001', name: 'Pública' }, { code: 'INVITE0001', name: 'Invitada' }];
+  assert.deepEqual(orderRoomListings(rooms, 'INVITE0001').map(room => room.name), ['Invitada', 'Pública']);
+  assert.deepEqual(orderRoomListings(rooms, 'CADUCADO00').map(room => room.name), ['Pública', 'Invitada']);
+  assert.equal(rooms[0].name, 'Pública', 'Ordenar no modifica la respuesta original del servidor.');
+});
 
 test('El servidor limita asientos y valida contraseñas privadas', () => {
   assert.deepEqual(validateRoomInput({ name: '  Mesa   de Ana  ', maxPlayers: 4, isPrivate: true, password: 'secreto1' }), {

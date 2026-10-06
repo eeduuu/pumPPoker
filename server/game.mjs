@@ -16,6 +16,7 @@ const STREET_REVEAL_DELAY_MS = 900;
 const RESULT_DELAY_MS = 4_500;
 const RESULT_REVEAL_PAUSE_MS = 900;
 const ELIMINATION_DELAY_MS = 3_100;
+const PRE_BREAK_WAIT_MS = 10_000;
 export const REMATCH_WAIT_MS = 15_000;
 const chipsFor = room => room.chips ?? BUY_IN;
 const initialLevel = room => ({ number: 1, small: room.small ?? SMALL_BLIND, big: room.big ?? BIG_BLIND });
@@ -112,7 +113,14 @@ export function beginHand(room, now = Date.now()) {
   if (!resumedFromBreak && room.game?.phase === 'result' && breakDue(room.mode ?? 'normal', room.breaks === true, room.every ?? 3, room.level?.number || 1, level.number)) {
     room.clockElapsed = limit; room.clockStartedAt = null;
     room.breakUntil = now + (room.rest ?? 5) * 60_000;
+    room.game.waitingForBreak = false;
     room.game.deadline = room.breakUntil;
+    return;
+  }
+  const remainingToBreak = limit - elapsed;
+  if (!resumedFromBreak && room.mode === 'tournament' && room.breaks === true && room.game?.phase === 'result' && remainingToBreak > 0 && remainingToBreak < PRE_BREAK_WAIT_MS) {
+    room.game.waitingForBreak = true;
+    room.game.deadline = now + remainingToBreak;
     return;
   }
   room.level = level;
@@ -125,7 +133,7 @@ export function beginHand(room, now = Date.now()) {
     dealInitialHand(stacks, level.small, level.big, live[randomInt(live.length)], createShuffledDeck());
   room.game = { number: (room.game?.number || 0) + 1, phase: 'playing', hand,
     smallAmount: level.small, bigAmount: level.big, betting: createPreflop(hand, level.big), community: { street: 0, cards: [], cursor: hand.cursor },
-    deadline: 0, lastPot: hand.pot, result: null };
+    deadline: 0, lastPot: hand.pot, result: null, waitingForBreak: false };
   room.status = 'playing';
   complete(room);
 }
@@ -171,12 +179,13 @@ export function publicGame(room, viewerId) {
   const game = room.game;
   if (!game) return null;
   const runout = game.phase === 'playing' && isAllInRunout(game.betting);
+  const showdown = game.phase === 'result' && game.betting.status !== 'uncontested';
   const viewer = room.players.find(player => player.id === viewerId && !player.pendingHand);
   const humanBySeat = new Map(room.players.filter(player => !player.pendingHand).map(player => [player.seat, player]));
   const seats = game.betting.players.map((bet, seat) => {
     const human = humanBySeat.get(seat);
     const active = game.hand.players[seat].cards.length === 2;
-    const showCards = active && (viewer?.seat === seat || ((game.phase === 'result' || runout) && !bet.folded));
+    const showCards = active && (viewer?.seat === seat || ((showdown || runout) && !bet.folded));
     return { seat, id: human?.id || (botSeat(room, seat) ? `bot-${seat - room.maxPlayers + 1}` : null),
       name: human?.name || (botSeat(room, seat) ? `Bot ${seat - room.maxPlayers + 1}` : ''),
       isBot: botSeat(room, seat), active, folded: bet.folded, eliminated: room.mode === 'tournament' && (room.eliminated || []).includes(seat),
@@ -189,7 +198,8 @@ export function publicGame(room, viewerId) {
   const breakLimit = nextBreakElapsedMs(room.mode ?? 'normal', growing(room), room.breaks === true, room.every ?? 3, room.level?.number || 1, duration);
   return { number: game.number, phase: game.phase, runout, street: game.community.street, newlyEliminated: game.newlyEliminated || [],
     smallAmount: game.smallAmount ?? SMALL_BLIND, bigAmount: game.bigAmount ?? BIG_BLIND,
-    clock: { enabled: growing(room), duration, elapsed: room.clockElapsed || 0, startedAt: room.clockStartedAt || null,
+    clock: { enabled: growing(room), duration, elapsed: room.clockElapsed || 0, startedAt: room.clockStartedAt || null, serverNow: Date.now(),
+      waitingForBreak: game.waitingForBreak === true,
       breakLimit: Number.isFinite(breakLimit) ? breakLimit : null, breakUntil: room.breakUntil || null },
     board: game.community.cards, pot: game.phase === 'result' ? game.result?.pot || 0 : game.betting.pot,
     actor: game.betting.actor, deadline: game.deadline, dealer: game.hand.dealer,

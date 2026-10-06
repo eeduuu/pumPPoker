@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AudioPreferences, useFeedback } from './feedback';
 import { BrandLogo } from './BrandLogo';
 import { actRoom, createRoom, joinRoom, leaveRoom, listRooms, multiplayerApiUrl, rememberRoomSession, resumeRoom, roomSocketUrl, savedRoomSession, spectateRoom, startRoom, voteRoomRematch } from './multiplayer/client';
 import type { RoomListing, RoomSession, RoomSnapshot } from './multiplayer/client';
 import { RoomPeople, peopleCount } from './multiplayer/RoomPeople';
+import { onlineSoundEvent } from './multiplayer/soundEvents';
+import { orderRoomListings } from './multiplayer/roomListing';
 import { TexasOnlineTable } from './TexasOnlineTable';
 import { validStartingBlinds } from './poker/levels';
 import { validPlayerName } from './playerProfile';
@@ -47,6 +49,19 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
   const [roomSocket, setRoomSocket] = useState<WebSocket | null>(null);
   const [inviteCode, setInviteCode] = useState(() => new URLSearchParams(window.location.search).get('texasRoom')?.toUpperCase() || '');
   const { feedback } = useFeedback();
+  const previousSoundSnapshot = useRef(snapshot);
+  const clearLocalRoom = useCallback(() => {
+    rememberRoomSession(null); setSession(null); setSnapshot(null); setChoice(null); setConnection('');
+    setChatMessages([]); setChatOpen(false); setPeopleOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const previous = previousSoundSnapshot.current;
+    previousSoundSnapshot.current = snapshot;
+    if (connection !== 'Conectado' || document.hidden) return;
+    const event = onlineSoundEvent(previous, snapshot);
+    if (event) feedback(event);
+  }, [snapshot, connection, feedback]);
 
   useEffect(() => {
     const saved = savedRoomSession();
@@ -98,7 +113,13 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
         if (typeof event.data !== 'string' || event.data === 'pong') return;
         try {
           const data = JSON.parse(event.data) as { type: string; room?: RoomSnapshot; playerId?: string; name?: string; text?: string; sentAt?: number; error?: string };
-          if (data.type === 'room' && data.room) setSnapshot(data.room);
+          if (data.type === 'room' && data.room) {
+            if (data.room.status === 'closed') {
+              clearLocalRoom(); setError('La mesa se ha cerrado porque ya no quedan jugadores.');
+              return;
+            }
+            setSnapshot(data.room);
+          }
           if (data.type === 'chat' && data.playerId && data.name && data.text && data.sentAt) setChatMessages(current => [...current.slice(-49), { playerId: data.playerId!, name: data.name!, text: data.text!, sentAt: data.sentAt! }]);
           if (data.type === 'error' && data.error) setChatNotice(data.error);
         } catch { /* Ignore malformed network messages. */ }
@@ -106,9 +127,9 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
       socket.onerror = () => setConnection('Conexión interrumpida');
       socket.onclose = event => {
         if (disposed) return;
-        if (event.code === 1008) {
-          rememberRoomSession(null); setSession(null); setSnapshot(null); setChoice(null); setConnection(''); setChatOpen(false);
-          setError('La nueva partida empezó con quienes aceptaron jugar otra vez.');
+        if (event.code === 1008 || event.code === 4000) {
+          clearLocalRoom();
+          setError(event.code === 4000 ? 'La mesa se ha cerrado porque ya no quedan jugadores.' : 'La nueva partida empezó con quienes aceptaron jugar otra vez.');
           return;
         }
         if (connectedSince && Date.now() - connectedSince > 5000) failures = 0;
@@ -119,7 +140,7 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
     };
     connect();
     return () => { disposed = true; if (retry) clearTimeout(retry); socket?.close(); setRoomSocket(null); };
-  }, [session]);
+  }, [session, clearLocalRoom]);
 
   const enter = (next: RoomSession) => { rememberRoomSession(next); setSession(next); setSnapshot(next.room); setError(''); setChoice('room'); };
   const submitCreate = async (event: FormEvent) => {
@@ -146,8 +167,11 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
     setBusy(true); setError('');
     try {
       await leaveRoom(session);
-      rememberRoomSession(null); setSession(null); setSnapshot(null); setChoice(null); setConnection(''); setChatMessages([]); setChatOpen(false); setPeopleOpen(false);
-    } catch (cause) { setError(message(cause)); }
+      clearLocalRoom();
+    } catch (cause) {
+      if ([401, 404, 410].includes((cause as { status?: number })?.status || 0)) clearLocalRoom();
+      else setError(message(cause));
+    }
     finally { setBusy(false); }
   };
 
@@ -238,7 +262,7 @@ export function TexasMultiplayerHub({ onBack, playerName }: { onBack: () => void
         <label>Código de invitación<input type="text" maxLength={10} autoCapitalize="characters" value={inviteCode} placeholder="Escribe el código" onChange={event => setInviteCode(event.target.value.toUpperCase().replace(/[^0-9A-V]/g, ''))}/></label>
         {inviteCode && !busy && !error && !rooms.some(room => room.code === inviteCode) && <p className="note">No hay ninguna mesa abierta con ese código.</p>}
         {!busy && !error && rooms.length === 0 && <p className="note">Todavía no hay mesas abiertas.</p>}
-        <div className="multiplayer-room-list">{rooms.filter(room => !inviteCode || room.code.includes(inviteCode)).map(room => <div className="multiplayer-room" key={room.id}>
+        <div className="multiplayer-room-list">{orderRoomListings(rooms, inviteCode).map(room => <div className="multiplayer-room" key={room.id}>
           <div><strong>{room.name}</strong><small>{room.mode === 'tournament' ? 'Torneo' : 'Partida normal'} · {room.isPrivate ? '🔒 Privada' : 'Pública'} · {room.playerCount}/{room.maxPlayers} personas · {room.botCount} bots · {room.spectatorCount || 0} mirando · {room.status === 'playing' ? 'En curso' : 'En espera'}</small></div>
           {joiningId === room.id && room.isPrivate && <label>Contraseña<input type="password" value={joinPassword} onChange={event => setJoinPassword(event.target.value)}/></label>}
           <div className="multiplayer-room-actions">{!room.joinLocked && !room.registrationClosed && room.playerCount < room.maxPlayers && <button className="games-back" type="button" disabled={busy || !validName} onClick={() => { if (room.isPrivate && joiningId !== room.id) { setJoiningId(room.id); setJoinPassword(''); return; } void submitJoin(room, false); }}>Entrar a jugar</button>}<button className="games-back" type="button" disabled={busy || !validName || room.spectatorCount >= 24} onClick={() => { if (room.isPrivate && joiningId !== room.id) { setJoiningId(room.id); setJoinPassword(''); return; } void submitJoin(room, true); }}>{room.mode === 'tournament' && room.registrationClosed ? 'Ver torneo' : 'Mirar mesa'}</button></div>

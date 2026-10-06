@@ -70,7 +70,7 @@ export class TexasDirectory extends DurableObject {
       if (!ROOM_ID.test(value?.id)) return error('Mesa inválida.');
       const rooms = (await this.ctx.storage.get('rooms')) || {};
       if (value.status === 'closed') delete rooms[value.id];
-      else if (rooms[value.id]) rooms[value.id] = value;
+      else if (!rooms[value.id] || value.updatedAt >= rooms[value.id].updatedAt) rooms[value.id] = value;
       await this.ctx.storage.put('rooms', rooms);
       return json({ ok: true });
     }
@@ -105,18 +105,24 @@ export class TexasRoom extends DurableObject {
   async publish(room) {
     await this.ctx.storage.put('room', room);
     this.closeExcludedPlayers(room);
+    let directoryRetryAt = 0;
     try {
       const response = await internalFetch(directory(this.env), '/update', 'POST', publicRoom(room));
       if (!response.ok) throw new Error('No se pudo actualizar el listado.');
     } catch {
       // A directory outage must not make an already-persisted join look unsuccessful.
-      await this.ctx.storage.setAlarm(Date.now() + 10_000);
+      directoryRetryAt = Date.now() + 10_000;
     }
     const expiries = (room.spectators || []).filter(member => member.disconnectedAt).map(member => member.disconnectedAt + RECONNECT_MS);
     if (room.status === 'waiting') expiries.push(...room.players.filter(member => member.disconnectedAt).map(member => member.disconnectedAt + RECONNECT_MS));
-    const nextAlarm = Math.min(...[room.rematch?.deadline, room.game?.deadline, ...expiries].filter(value => value > 0));
+    const nextAlarm = Math.min(...[directoryRetryAt, room.rematch?.deadline, room.game?.deadline, ...expiries].filter(value => value > 0));
     if (Number.isFinite(nextAlarm)) await this.ctx.storage.setAlarm(Math.max(Date.now() + 100, nextAlarm));
     this.broadcast(room);
+    if (room.status === 'closed') {
+      for (const socket of this.ctx.getWebSockets()) {
+        try { socket.close(4000, 'Mesa cerrada'); } catch { /* La mesa ya está cerrada para ese cliente. */ }
+      }
+    }
   }
 
   async fetch(request) {
@@ -201,10 +207,10 @@ export class TexasRoom extends DurableObject {
 
     if (path === '/snapshot' && request.method === 'GET') return json(this.snapshot(room, member.id));
     if (path === '/start' && request.method === 'POST') {
-      if (!player || room.hostId !== player.id) return error('Solo quien creó la mesa puede iniciar el torneo.', 403);
+      if (!player || room.hostId !== player.id) return error('Solo el anfitrión puede iniciar el torneo.', 403);
       return this.ctx.blockConcurrencyWhile(async () => {
         const current = await this.load();
-        if (current.hostId !== player.id) return error('Solo quien creó la mesa puede iniciar el torneo.', 403);
+        if (current.hostId !== player.id) return error('Solo el anfitrión puede iniciar el torneo.', 403);
         if (current.mode !== 'tournament' || registrationClosed(current) || !canBegin(current)) return error('El torneo no se puede iniciar todavía.', 409);
         current.tournamentStartedAt = Date.now();
         beginHand(current);

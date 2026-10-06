@@ -115,9 +115,40 @@ test('El crupier no pide con 17 suave y la segunda mano separada no cobra blackj
   const pair = startRound(createGame('Tú', 100, 0, rig([14, 'clubs'], [6, 'spades'], [14, 'hearts'], [9, 'diamonds'], [9, 'clubs'], [10, 'hearts'])), 10);
   const split = act(pair, 'split');
   assert.equal(split.seats[0].hands.length, 2);
-  assert.equal(split.seats[0].hands[0].done, true);
+  assert.equal(split.seats[0].hands[0].done, false);
   assert.equal(split.seats[0].hands[1].done, true);
-  assert.notEqual(split.seats[0].hands[1].outcome, 'blackjack');
+  const finished = act(split, 'stand');
+  assert.notEqual(finished.seats[0].hands[1].outcome, 'blackjack');
+});
+
+test('Tras separar ases se puede pedir o plantarse por separado, sin doblar ni separar otra vez', () => {
+  const pair = startRound(createGame('Tú', 100, 0, rig(
+    [14, 'clubs'], [6, 'spades'], [14, 'hearts'], [9, 'diamonds'],
+    [3, 'clubs'], [5, 'hearts'], [2, 'clubs'], [4, 'diamonds'],
+  )), 10);
+  const split = act(pair, 'split');
+  assert.equal(split.phase, 'playing');
+  assert.equal(split.seats[0].bankroll, 80);
+  assert.deepEqual(availableActions(split), ['hit', 'stand']);
+  const firstHit = act(split, 'hit');
+  assert.equal(firstHit.handIndex, 0);
+  assert.equal(firstHit.seats[0].hands[0].cards.length, 3);
+  const secondHand = act(firstHit, 'stand');
+  assert.equal(secondHand.handIndex, 1);
+  assert.deepEqual(availableActions(secondHand), ['hit', 'stand']);
+  const secondHit = act(secondHand, 'hit');
+  assert.equal(secondHit.seats[0].hands[1].cards.length, 3);
+  assert.equal(secondHit.phase, 'playing');
+  const result = act(secondHit, 'stand');
+  assert.equal(result.phase, 'result');
+  assert.equal(result.seats[0].hands.length, 2);
+  assert.ok(result.seats[0].hands.every(hand => hand.split && hand.done && hand.outcome !== 'blackjack'));
+});
+
+test('El total suave final del crupier se muestra como una sola cifra', async () => {
+  const source = await readFile(new URL('../src/BlackjackSoloHub.tsx', import.meta.url), 'utf8');
+  assert.match(source, /dealerFinished = game\.phase === 'result' && shown\.dealer\.length === game\.dealer\.length/);
+  assert.match(source, /scoreLabel\(shown\.dealer, dealerFinished\)/);
 });
 
 test('Los asientos solo cambian entre manos y un bot nuevo entra con las fichas iniciales', () => {
